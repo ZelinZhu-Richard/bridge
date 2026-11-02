@@ -1,0 +1,22 @@
+name = "bridge-ai"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# The Anthropic API key is a secret, never a var. Set it with:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+[vars]
+MODEL = "claude-opus-5-5"
+ALLOWED_ORIGINS = "https://zelinzhu-richard.github.io,http://localhost:8765,http://127.0.0.1:8765"
+DAILY_LIMIT = "400"     # requests per UTC day, across all visitors
+IP_HOURLY_LIMIT = "60"  # requests per visitor IP (IPv6: per /64) per hour
+# ANTHROPIC_API_URL = "https://api.anthropic.com"  # optional; only tests point it at a mock
+
+# One global rate limiter, stored in SQLite (works on the free plan).
+[[durable_objects.bindings]]
+name = "LIMITER"
+class_name = "Limiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Limiter"]

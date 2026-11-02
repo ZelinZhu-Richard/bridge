@@ -1,0 +1,16 @@
+{
+  "name": "bridge-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker that lets the Bridge static site call Claude with the site owner's API key, without exposing the key.",
+  "type": "module",
+  "scripts": {
+    "extract": "node scripts/extract-schemas.mjs",
+    "dev": "npm run extract && wrangler dev",
+    "test": "npm run extract && node test/run.mjs",
+    "deploy": "npm run extract && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.156.2"
+  }
+}
