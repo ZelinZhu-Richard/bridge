@@ -1751,7 +1751,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       term: it.term, type: it.type, why_needed: it.why_needed, correct: !!d.answers[i].correct, unsure: !!d.answers[i].unsure,
     } : null)).filter(Boolean);
     s.diagnostics_missed = s.diagnostics.filter((x) => !x.correct).length;
-    s.prerequisite_pre_post = s.diagnostics.map((d) => ({ term: d.term, type: d.type, pre: d.correct, pre_unsure: d.unsure, post: null, post_unsure: null }));
+    s.prerequisite_pre_post = s.diagnostics.map((d) => ({ term: d.term, type: d.type, pre: d.correct, pre_unsure: d.unsure, post: null, post_unsure: null, post_status: d.correct ? "not_needed" : "pending" }));
     saveSession();
   }
 
@@ -1799,9 +1799,18 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       S.recheck = { status: "ready", items: result.items, answers: [], index: 0 };
     } catch (e) {
       if (run !== S.run) return;
-      S.recheck = { status: "error", error: friendly(e) };
-      S.session.recheck_status = "unavailable";
+      S.recheck = { status: "skipped" };
+      S.session.recheck_status = "recheck_unavailable";
+      for (const pair of S.session.prerequisite_pre_post) {
+        if (targets.some((t) => t.term === pair.term)) {
+          pair.post = null; pair.post_unsure = null; pair.post_status = "recheck_unavailable";
+        }
+      }
       saveSession();
+      // Recheck failure must never prevent a student finishing the reading loop.
+      if (S.view === "recheck") { go("reread"); return; }
+      if (S.lastStudentView === "recheck") S.lastStudentView = "reread";
+      render();
     }
     if (S.view === "recheck") { S.focusPending = true; render(); }
   }
@@ -1814,7 +1823,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     S.session.recheck = r.items.flatMap((it, i) => r.answers[i] ? [{ term: it.term, type: it.type, correct: r.answers[i].correct, unsure: r.answers[i].unsure }] : []);
     for (const pair of S.session.prerequisite_pre_post) {
       const post = S.session.recheck.find((a) => a.term === pair.term);
-      if (post) { pair.post = post.correct; pair.post_unsure = post.unsure; }
+      if (post) { pair.post = post.correct; pair.post_unsure = post.unsure; pair.post_status = "answered"; }
     }
     if (r.answers.filter(Boolean).length === r.items.length) S.session.recheck_status = "completed";
     saveSession(); render(); announceFeedback();
@@ -2195,6 +2204,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     const skipped = S.bridgeSkipped ? `<div class="callout good" role="status"><strong>Bridge and recheck skipped.</strong><p>You answered all ${S.diag.items.length} quick-check questions correctly, so there was nothing to fill in. You can still tap any marked word.</p></div>` : "";
     return `
       ${skipped}
+      ${S.session && S.session.recheck_status === "recheck_unavailable" ? '<div class="callout info" role="status"><strong>Immediate recheck unavailable.</strong><p>You can keep reading. These prerequisites have no post result and are excluded from pre/post statistics.</p></div>' : ""}
       <p class="eyebrow">Back to the passage</p>
       <h2 tabindex="-1" data-focus>Read it again, with the gaps filled</h2>
       <p class="muted">${S.bridgeSkipped ? "Marked words are ideas this passage assumes." : "Highlighted words are the ones you just learned."} Tap any marked word to see its explanation.</p>
@@ -2304,7 +2314,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     const entry = (t) => {
       const term = String(t.term || "(unnamed)");
       const key = normTerm(term.replace(/\s*\([^)]*\)/g, " ")) || normTerm(term); // "i.i.d. (independent …)" groups with "i.i.d."
-      if (!terms.has(key)) terms.set(key, { key, term, type: t.type === "language" ? "language" : "concept", detected: 0, checked: 0, missed: 0, rechecked: 0, postCorrect: 0, why: "", courses: new Set(), passages: new Set(), passageIds: new Set(), sessionIds: new Set() });
+      if (!terms.has(key)) terms.set(key, { key, term, type: t.type === "language" ? "language" : "concept", detected: 0, checked: 0, missed: 0, rechecked: 0, postCorrect: 0, recheckUnavailable: 0, why: "", courses: new Set(), passages: new Set(), passageIds: new Set(), sessionIds: new Set() });
       return terms.get(key);
     };
     for (const s of sessions) {
@@ -2319,6 +2329,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       }
       const pk = s.passage_id || "unknown";
       for (const pair of s.prerequisite_pre_post || []) {
+        if (pair.pre === false && pair.post_status === "recheck_unavailable") entry(pair).recheckUnavailable++;
         if (pair.pre === false && typeof pair.post === "boolean") {
           const e = entry(pair); e.rechecked++; if (pair.post) e.postCorrect++;
         }
@@ -2412,8 +2423,8 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       </section>
       <section class="section" aria-labelledby="recheckTitle">
         <h2 id="recheckTitle">Pre → post by prerequisite</h2>
-        <p class="small muted">Matched items only: prerequisites missed in the quick check and answered right after the bridge. Immediate recheck, not long-term retention; small samples. Missing posts are excluded, including older sessions without rechecks.</p>
-        <ul>${sum.missedTerms.map((e) => `<li><strong>${esc(e.term)}</strong>: ${e.rechecked ? `0/${e.rechecked} → ${e.postCorrect}/${e.rechecked} correct` : "no matched rechecks"}${e.missed > e.rechecked ? ` · ${e.missed - e.rechecked} missed without a post result` : ""}</li>`).join("")}</ul>
+        <p class="small muted">Matched items only: prerequisites missed in the quick check and answered right after the bridge. Immediate recheck, not long-term retention; small samples. Missing posts, including recheck_unavailable and older sessions without rechecks, are excluded from pre/post statistics.</p>
+        <ul>${sum.missedTerms.map((e) => `<li><strong>${esc(e.term)}</strong>: ${e.rechecked ? `0/${e.rechecked} → ${e.postCorrect}/${e.rechecked} correct` : "no matched rechecks"}${e.missed > e.rechecked ? ` · ${e.missed - e.rechecked} missed without a post result` : ""}${e.recheckUnavailable ? ` · ${e.recheckUnavailable} recheck_unavailable (excluded)` : ""}</li>`).join("")}</ul>
       </section>
       <section class="section" aria-labelledby="splitTitle">
         <h2 id="splitTitle">Language gaps vs. concept gaps</h2>
@@ -2450,6 +2461,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     const matched = missedPairs.filter((p) => typeof p.post === "boolean");
     return {
       recheckN: matched.length, recheckCorrect: matched.filter((p) => p.post).length, recheckMissing: missedPairs.length - matched.length,
+      recheckUnavailable: missedPairs.filter((p) => p.post_status === "recheck_unavailable").length,
       sessions: sessions.length,
       completed: sessions.filter((s) => s.completed).length,
       avgMini: withMini.length ? withMini.reduce((a, s) => a + s.minicheck_score / s.minicheck_total, 0) / withMini.length : null,
@@ -2475,7 +2487,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       <p class="muted">Everything Bridge logged on this device. No names, emails or accounts. Passage text is stored only as a short label and an ID.</p>
       ${examples ? `<label class="toggle"><input type="checkbox" id="incEx" data-change="includeExamples" ${S.admin.includeExamples ? "checked" : ""}> Include ${examples} example sessions (made-up data)</label>` : ""}
       <p><strong>Missed prerequisites answered correctly right after the bridge: ${st.recheckCorrect} of ${st.recheckN} (${st.recheckN ? pct(st.recheckCorrect, st.recheckN) : 0}%)</strong></p>
-      <p class="small muted">Immediate recheck, not long-term retention; small samples. Counts answered posts only; ${st.recheckMissing} missed prerequisites have no post result. Older sessions without rechecks are excluded.</p>
+      <p class="small muted">Immediate recheck, not long-term retention; small samples. Counts answered posts only; ${st.recheckMissing} missed prerequisites have no post result, including ${st.recheckUnavailable} recheck_unavailable (excluded from pre/post statistics). Older sessions without rechecks are excluded.</p>
       <div class="tiles">
         <div class="tile"><b>${st.sessions}</b><span>sessions (${st.completed} completed)</span></div>
         <div class="tile"><b>${st.avgMini === null ? "–" : Math.round(st.avgMini * 100) + "%"}</b><span>average mini-check score${st.avgMiniRaw === null ? "" : ` (${st.avgMiniRaw.toFixed(1)} of ${st.avgMiniTotal.toFixed(0)})`}</span></div>

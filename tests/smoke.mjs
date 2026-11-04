@@ -121,6 +121,10 @@ async function finishLoop(page, { language, missCount }) {
     const s = await session(page);
     check(s.bridge_skipped && s.recheck_status === "skipped_all_correct" && s.recheck.length === 0, "skips recorded without invented posts");
   }
+  await finishReading(page);
+}
+
+async function finishReading(page) {
   await waitView(page, "reread");
   await noOverflow(page);
   await action(page, "toPractice");
@@ -280,6 +284,51 @@ try {
     await finishLoop(page, { language: "en", missCount: 1 });
     await page.context().close();
     console.log(`PASS mocked live AI balance retry: ${fixedOnRetry ? "repaired" : "accepted and flagged"}, recheck and loop`);
+  }
+  for (const failure of ["repeat", "malformed", "transport"]) {
+    const fixture = structuredClone(demos[0].data);
+    let recheckCalls = 0;
+    const page = await newPage({ reply: async (route) => {
+      const { schema, prompt } = route.request().postDataJSON();
+      let output;
+      if (schema.properties.prerequisites) output = fixture.gaps;
+      else if (schema.properties.kind) {
+        recheckCalls++;
+        if (failure === "transport") return route.fulfill({ status: 503, json: { error: { type: "bridge_unavailable" } } });
+        output = failure === "repeat" ? { kind: "immediate_recheck", items: fixture.diagnostic.items } : { broken: true };
+      } else if (schema.properties.items) output = fixture.diagnostic;
+      else if (schema.properties.questions) output = fixture.minicheck;
+      else if (schema.properties.intuition) {
+        const term = Object.keys(fixture.bridges).find((term) => prompt.includes(`missing one prerequisite: ${JSON.stringify(term)}`));
+        assert.ok(term, "bridge request identifies its prerequisite");
+        output = { term, ...fixture.bridges[term], gloss: "" };
+      } else throw new Error("Unexpected task");
+      await route.fulfill({ json: { content: [{ type: "text", text: JSON.stringify(output) }], stop_reason: "end_turn" } });
+    } });
+    await action(page, "fillStats"); await page.locator('#inputForm button[type="submit"]').click();
+    await action(page, "startDiag");
+    await page.waitForFunction(() => window.BridgeTest.state().diag?.status === "ready");
+    await quickCheck(page, 3);
+    await page.waitForFunction(() => Object.values(window.BridgeTest.state().bridges).every((b) => b.status === "ready"));
+    await action(page, "startRecheck"); await waitView(page, "reread");
+    check(recheckCalls === (failure === "transport" ? 1 : 2), `${failure}: generation exhausted its applicable attempts`);
+    const s = await session(page);
+    check(s.recheck_status === "recheck_unavailable" && s.recheck.length === 0, "failure does not invent post answers");
+    check(s.prerequisite_pre_post.length === 3 && s.prerequisite_pre_post.every((p) => p.post === null && p.post_status === "recheck_unavailable"), "unavailable logged for every missed prerequisite");
+    check((await page.locator("#main").innerText()).includes("excluded from pre/post statistics"), "reread explains missing evidence");
+    await finishReading(page);
+    await action(page, "admin");
+    check((await page.locator("#main").innerText()).includes("0 of 0 (0%)"), "unavailable posts excluded from numerator and denominator");
+    check((await page.locator("#main").innerText()).includes("3 recheck_unavailable"), "Evidence counts unavailable posts");
+    const json = JSON.parse(await exported(page, "exportJSON"));
+    check(json.sessions[0].prerequisite_pre_post.every((p) => p.post_status === "recheck_unavailable"), "JSON contains unavailable status");
+    const csv = parseCSV(await exported(page, "exportCSV"));
+    check(JSON.parse(csv[1][csv[0].indexOf("prerequisite_pre_post")]).every((p) => p.post_status === "recheck_unavailable"), "CSV contains unavailable status");
+    await action(page, "teacherMode");
+    const teacher = await page.locator("#main").innerText();
+    check(teacher.includes("recheck_unavailable (excluded)") && teacher.includes("no matched rechecks"), "Teacher distinguishes unavailable from incorrect posts");
+    await page.context().close();
+    console.log(`PASS recheck ${failure}: automatically continues through survey; unavailable excluded from evidence`);
   }
   const blocked = await newPage({ blockedStorage: true });
   await startDemo(blocked, demos[0].id, "en");
