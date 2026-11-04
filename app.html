@@ -681,7 +681,7 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
       items: [
         { term: "dot product", question: "What is (2, 1) · (3, 4)?", options: ["(6, 4)", "10", "7", "24"], correct_index: 1, answer_text: "10", explanation: "Multiply matching parts and add: 2·3 + 1·4 = 10. The result is a number, not a vector." },
         { term: "vector norm ‖u‖", question: "What is ‖(3, 4)‖, the length of the vector (3, 4)?", options: ["7", "25", "5", "12"], correct_index: 2, answer_text: "5", explanation: "‖(3, 4)‖ = √(3² + 4²) = √25 = 5." },
-        { term: "summation notation Σ", question: "What does Σᵢ₌₁³ i² equal?", options: ["6", "9", "36", "14"], correct_index: 3, answer_text: "14", explanation: "Σ means add the terms for i = 1, 2, 3: 1 + 4 + 9 = 14." },
+        { term: "summation notation Σ", question: "What does Σᵢ₌₁³ i² equal?", options: ["12", "18", "36", "14"], correct_index: 3, answer_text: "14", explanation: "Σ means add the terms for i = 1, 2, 3: 1 + 4 + 9 = 14." },
       ],
     },
     bridges: {
@@ -718,9 +718,9 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
     },
     minicheck: {
       questions: [
-        { question: "According to the passage, what is true about the residual r = v − proj_u(v)?", options: ["It is orthogonal to u, so r · u = 0", "It points in the same direction as u", "It is always the zero vector", "Its length always equals ‖u‖"], correct_index: 0, answer_text: "It is orthogonal to u, so r · u = 0", explanation: "The passage says the residual is orthogonal to u, which means r · u = 0.", difficulty: "easy" },
+        { question: "According to the passage, what is true about the residual r = v − proj_u(v)?", options: ["It is perpendicular to the vector u", "It points in the same direction as u", "It is always equal to the zero vector", "It always has the same length as u"], correct_index: 0, answer_text: "It is perpendicular to the vector u", explanation: "The passage says the residual is orthogonal to u, which means r · u = 0.", difficulty: "easy" },
         { question: "Using the passage's formula, what is the projection of v = (2, 5) onto u = (1, 0)?", options: ["(0, 5)", "(7, 0)", "(2, 0)", "(2, 5)"], correct_index: 2, answer_text: "(2, 0)", explanation: "v · u = 2 and ‖u‖² = 1, so proj_u(v) = 2 · (1, 0) = (2, 0).", difficulty: "medium" },
-        { question: "Why can the passage assume ‖u‖ = 1 “without loss of generality”?", options: ["Every vector already has length 1", "The dot product ignores length", "Scaling u to length 1 keeps its direction, and the projection depends only on that direction", "‖u‖² is always 1 in ℝⁿ"], correct_index: 2, answer_text: "Scaling u to length 1 keeps its direction, and the projection depends only on that direction", explanation: "Replacing u with u/‖u‖ keeps the same line, so the formula gives the same projection.", difficulty: "hard" },
+        { question: "Why can the passage assume ‖u‖ = 1 “without loss of generality”?", options: ["Scaling u makes every dot product zero", "Scaling u leaves every dot product fixed", "Scaling u preserves the line it defines", "Scaling u makes every residual vanish"], correct_index: 2, answer_text: "Scaling u preserves the line it defines", explanation: "Replacing u with u/‖u‖ keeps the same line, so the formula gives the same projection.", difficulty: "hard" },
       ],
     },
     lessons: {
@@ -931,15 +931,28 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
   async function generateJSON(task, { prompt, validate, schema, canned, session = null, signal, report = {} }) {
     let reason = "";
     let fallback = null;
+    let retryFresh = false;
     const count = (field) => { if (sessionAlive(session)) { session[field] = (session[field] || 0) + 1; persistSession(session); } };
+    const accept = (value) => {
+      const flags = optionBalanceFlags(value).map((f) => Object.assign({ task }, f));
+      if (flags.length) {
+        report.strict = false;
+        if (sessionAlive(session)) {
+          session.mcq_quality_flags = session.mcq_quality_flags || [];
+          for (const f of flags) if (!session.mcq_quality_flags.some((x) => x.task === f.task && x.question === f.question)) session.mcq_quality_flags.push(f);
+          persistSession(session);
+        }
+      }
+      return value;
+    };
     for (let attempt = 0; attempt < 2; attempt++) {
       if (signal && signal.aborted) throw new BridgeError("cancelled", "Stopped.");
       const p = attempt === 0 ? prompt : `${prompt}\n\nIMPORTANT: your previous reply could not be used because ${reason}. Reply again with ONLY the JSON object, in exactly the shape shown above.`;
       let text, truncated = false;
-      if (canned !== undefined) text = JSON.stringify(canned);
+      if (canned !== undefined && !retryFresh) text = JSON.stringify(canned);
       else {
         try { ({ text, truncated } = await callModel(p, schema, signal)); }
-        catch (e) { if (fallback && !(e && e.code === "cancelled")) { report.strict = false; return fallback; } throw e; }
+        catch (e) { if (fallback && !(e && e.code === "cancelled")) { report.strict = false; return accept(fallback); } throw e; }
       }
       if (settings.fault === "always" || (settings.fault === "once" && attempt === 0)) text = FAULTS[attempt % FAULTS.length];
       const parsed = parseLooseJSON(text);
@@ -956,12 +969,17 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
       } else {
         result = truncated ? fail("it was cut off before the end; keep every field shorter") : parsed;
       }
-      if (result.ok) return result.value;
-      reason = result.reason;
+      if (result.ok) {
+        if (attempt === 0 && optionBalanceFlags(result.value).length) {
+          fallback = result.value;
+          retryFresh = true; // repair a stale cached item through AI too
+          reason = "the correct option is longer than 1.5 times the mean distractor length; make every option similar in length and grammatical form without making the answer obvious";
+        } else return accept(result.value);
+      } else reason = result.reason;
       if (attempt === 0) count("ai_retries");
       console.info(`[Bridge] ${task}: unusable reply (${reason})${attempt === 0 ? ", retrying once" : ""}`);
     }
-    if (fallback) { report.strict = false; return fallback; }
+    if (fallback) { report.strict = false; return accept(fallback); }
     count("ai_errors");
     throw new BridgeError("bad_output", "Bridge asked the AI twice, but both answers came back in a form it couldn't use. Nothing is lost. Try again.");
   }
@@ -972,6 +990,7 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
     "Write math in plain Unicode (·, ², √, Σ, ‖v‖, x₁, ≤, ≠). Never use LaTeX or Markdown.",
     "Reply with ONLY one JSON object: no text before or after it, no code fences.",
   ].join("\n");
+  const MCQ_RULES = "Options must be similar in length and grammatical form. The correct answer must not stand out through length, extra specificity, or all-of-the-above patterns. Do not use all/none of the above.";
   // A random marker per call, so text inside the passage can't fake the end of the data block.
   const passageBlock = (passage) => {
     const tag = "PASSAGE_" + randomHex(3);
@@ -1017,6 +1036,7 @@ JSON shape:
     const list = targets.map((p, i) => `${i + 1}. ${JSON.stringify(p.term)} (${p.type}): ${JSON.stringify(p.why_needed)}`).join("\n");
     return `You are Bridge, a teaching assistant. Write a quick diagnostic that checks whether a student ALREADY knows each prerequisite below, before they are taught it. Students often don't know what they don't know, so test them instead of asking.
 ${STYLE_RULES}
+${MCQ_RULES}
 
 Course: ${courseLabel}
 ${passageBlock(passage)}
@@ -1065,6 +1085,7 @@ JSON shape:
   function promptMiniCheck({ passage, courseLabel, homework }) {
     return `You are Bridge, a teaching assistant. Write a 3-question retrieval-practice check on the PASSAGE's own content: the main ideas it states or teaches, not only its background prerequisites. The student has just read it with support.
 ${STYLE_RULES}
+${MCQ_RULES}
 
 Course: ${courseLabel}
 ${passageBlock(passage)}
@@ -1110,6 +1131,17 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   // ---------- Validators: return {ok, value} or {ok:false, reason} ----------
   const ok = (value) => ({ ok: true, value });
   const fail = (reason) => ({ ok: false, reason });
+
+  function optionBalanceFlags(value) {
+    const questions = (value && (value.items || value.questions)) || [];
+    return questions.flatMap((q) => {
+      if (!Array.isArray(q.options)) return [];
+      const distractors = q.options.filter((_, i) => i !== q.correct_index);
+      const mean = distractors.reduce((n, o) => n + normWS(o).length, 0) / distractors.length;
+      const ratio = mean ? normWS(q.options[q.correct_index]).length / mean : 0;
+      return ratio > 1.5 ? [{ code: "correct_option_too_long", term: q.term || "", question: q.question, length_ratio: Math.round(ratio * 100) / 100 }] : [];
+    });
+  }
 
   function validateGaps(v) {
     if (!v || !Array.isArray(v.prerequisites)) return fail('"prerequisites" was missing or was not a list');
@@ -1221,7 +1253,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     if (!Array.isArray(a)) return [];
     // Normalize every record so one damaged entry can't break the views or exports.
     return a.filter((s) => s && typeof s === "object" && typeof s.id === "string").map((s) => Object.assign({}, s, {
-      prerequisites: objs(s.prerequisites), diagnostics: objs(s.diagnostics), minicheck: objs(s.minicheck),
+      prerequisites: objs(s.prerequisites), diagnostics: objs(s.diagnostics), minicheck: objs(s.minicheck), mcq_quality_flags: objs(s.mcq_quality_flags),
       bridged_terms: Array.isArray(s.bridged_terms) ? s.bridged_terms : [],
       on_demand_bridges: Array.isArray(s.on_demand_bridges) ? s.on_demand_bridges : [],
       survey: s.survey && typeof s.survey === "object" ? s.survey : null,
@@ -1290,6 +1322,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       survey: null,
       ai_retries: 0,
       ai_errors: 0,
+      mcq_quality_flags: [],
     };
   }
 
@@ -2270,7 +2303,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     "passage_id", "passage_label", "looks_like_homework", "n_prerequisites", "n_concept", "n_language", "prerequisites",
     "diagnostics_n", "diagnostics_missed", "diagnostic_results", "bridge_skipped", "bridged_terms", "on_demand_bridges",
     "minicheck_score", "minicheck_total", "minicheck_results", "reviews_scheduled", "time_spent_sec",
-    "survey_helpful", "survey_found_new", "survey_still_confusing", "survey_skipped", "ai_retries", "ai_errors",
+    "survey_helpful", "survey_found_new", "survey_still_confusing", "survey_skipped", "ai_retries", "ai_errors", "mcq_quality_flags",
   ];
   function csvCell(v) {
     if (v === null || v === undefined) return "";
@@ -2290,7 +2323,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
         (s.diagnostics || []).map((d) => `${d.term}=${d.correct ? "correct" : d.unsure ? "not sure" : "missed"}`).join("; "),
         !!s.bridge_skipped, (s.bridged_terms || []).join("; "), (s.on_demand_bridges || []).join("; "),
         s.minicheck_score, s.minicheck_total, (s.minicheck || []).map((m) => `${m.difficulty}=${m.correct ? 1 : 0}`).join("; "),
-        s.reviews_scheduled, s.time_spent_sec, sv.helpful, sv.found_new, sv.still_confusing, sv.skipped === undefined ? "" : !!sv.skipped, s.ai_retries, s.ai_errors,
+        s.reviews_scheduled, s.time_spent_sec, sv.helpful, sv.found_new, sv.still_confusing, sv.skipped === undefined ? "" : !!sv.skipped, s.ai_retries, s.ai_errors, JSON.stringify(s.mcq_quality_flags || []),
       ];
     }));
   }
