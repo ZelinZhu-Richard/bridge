@@ -172,6 +172,11 @@ try {
   check(recheckValidation, "recheck rejects reused or missing questions and accepts parallel items");
   await inventory.context().close();
   for (const demo of demos) {
+    check(demo.data.gaps.prerequisites.length >= 3 && demo.data.gaps.prerequisites.length <= 5, `${demo.id} has 3–5 prerequisites`);
+    for (const p of demo.data.gaps.prerequisites) {
+      const b = demo.data.bridges[p.term];
+      check(b && b.intuition && b.definition && b.example && b.gloss.zh && b.gloss.es, `${demo.id}: ${p.term} has complete offline bridges and glosses`);
+    }
     // Audit every stored key and option length, including all saved parallel items.
     for (const q of [...demo.data.diagnostic.items, ...demo.data.recheck.items, ...demo.data.minicheck.questions]) {
       check(q.answer_text === q.options[q.correct_index], `${demo.id} saved answer key agrees`);
@@ -184,6 +189,7 @@ try {
       await finishLoop(page, { language, missCount });
       await action(page, "teacherMode");
       check((await page.locator("#main").innerText()).includes("Pre → post"), "teacher shows pre/post");
+      if (missCount) check((await page.locator("#main").innerText()).includes("Saved example (written for this demo passage)"), `${demo.id} has a saved teacher lesson`);
       await action(page, "addExamples");
       check((await page.locator("#main").innerText()).includes("made-up students"), "example class clearly labeled");
       await action(page, "admin");

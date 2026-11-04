@@ -1,12 +1,12 @@
 # Bridge
 
-Bridge is an AI reading tutor for intro STEM students, especially ESL, first-generation and community-college students. It finds the background ideas and academic words a passage takes for granted, checks which ones the student really has, teaches only the missing pieces, then runs a short practice check with spaced review.
+Bridge is an AI reading tutor for intro STEM students, especially ESL, first-generation and community-college students. It finds the background ideas and academic words a passage takes for granted, checks which ones the student really has, teaches only the missing pieces, then runs a short practice check with spaced review. The Teacher view flags where learners may be off-track so a teacher can decide how to intervene.
 
 **Try it:** https://zelinzhu-richard.github.io/bridge/
 
 ## How to test (5 lines)
 1. Open the site. It works on a phone or a laptop, with no sign-up.
-2. Click **Try the demo**: miss at least one quick-check question, read the bridge, answer a new immediate recheck on each missed prerequisite, reread with highlights, take the 3-question check, then answer the survey. Answer all quick-check items correctly to skip both bridge and recheck.
+2. Choose an offline demo (**linear algebra, statistics, chemistry, or physics**) and click **Try the demo**: miss at least one quick-check question, read the bridge, answer a new immediate recheck on each missed prerequisite, reread with highlights, take the 3-question check, then answer the survey. Answer all quick-check items correctly to skip both bridge and recheck.
 3. Pick **中文** or **Español** before starting to get home-language glosses. **English only** shows none.
 4. Under **Bring your own passage**, click **Fill in a statistics example** (or paste your own text), then **Find what it assumes**. This uses live AI.
 5. Footer → **Evidence log** for averages and JSON/CSV export. Header → **Teacher** for the class view (**Load example class data** if it's empty). Settings (gear) → **Testing tools** to simulate broken AI output or shift the clock so spaced reviews come due.
@@ -14,6 +14,7 @@ Bridge is an AI reading tutor for intro STEM students, especially ESL, first-gen
 ## Files
 - `app.html`: the whole app (HTML, CSS and JavaScript). It has no `<html>`/`<head>` wrapper, so it also works as a claude.ai Artifact.
 - `build.sh`: wraps `app.html` into `index.html`, the page GitHub Pages serves. If `site-ai-url.txt` exists, the page uses that AI server.
+- `tests/demo-answer-audit.md`: worked verification of every saved demo answer key; no student evidence.
 - `worker/`: a small Cloudflare Worker that holds the site owner's Anthropic API key, so visitors get live AI without a key. It accepts the app's six schemas and enforces per-network and daily limits. Setup is in `worker/README.md`.
 
 ## Where live AI comes from

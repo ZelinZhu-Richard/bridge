@@ -654,6 +654,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   const COURSES = [
     { id: "linear-algebra", label: "Intro linear algebra" },
     { id: "statistics", label: "Intro statistics" },
+    { id: "chemistry", label: "High-school chemistry" },
+    { id: "physics", label: "High-school physics" },
     { id: "calculus", label: "Calculus" },
     { id: "intro-cs", label: "Intro computer science" },
     { id: "other", label: "Other STEM course" },
@@ -753,7 +755,124 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
       "summation notation σ": "Open with a long sum such as u₁ + u₂ + u₃ + … + u₁₀ and ask how to write it in less space. Introduce Σ as “add up,” and read Σᵢ₌₁³ i² aloud as “the sum of i squared, for i from 1 to 3,” writing out 1 + 4 + 9 = 14. Then return to the reading’s Σᵢ₌₁ᵏ (v · uᵢ) uᵢ and expand it for k = 2, so students see one projection per vector, added together. For a check for understanding, ask the class to expand Σᵢ₌₁⁴ 2i (2 + 4 + 6 + 8 = 20). Watch for students who multiply the terms instead of adding them, or who treat i as one fixed number instead of a counter.",
     },
   };
-  const demoBridge = (term) => DEMO.bridges[term] || null;
+  // Saved lessons and questions: no AI connection is needed for any demo.
+  const savedItem = (term, question, options, correct_index, explanation) => ({ term, question, options, correct_index, answer_text: options[correct_index], explanation });
+  const savedMini = (difficulty, question, options, correct_index, explanation) => Object.assign(savedItem("", question, options, correct_index, explanation), { difficulty });
+  const savedPrereq = (term, type, importance, anchor, why_needed) => ({ term, type, importance, anchor, why_needed, unsure: false });
+  const savedBridge = (intuition, definition, example, zh, es) => ({ intuition, definition, example, gloss: { zh, es } });
+  const CHEM_PASSAGE = `A balanced chemical equation conserves atoms. In 2H₂ + O₂ → 2H₂O, the coefficients give the ratio of molecules: two hydrogen molecules react with one oxygen molecule to form two water molecules. A subscript counts atoms within one molecule; H₂O contains two hydrogen atoms and one oxygen atom. To keep the same substance, change coefficients when balancing, not subscripts. If six H₂ molecules and three O₂ molecules react completely, they form six H₂O molecules. The numbers of hydrogen and oxygen atoms are unchanged. The same ratios also apply to amounts measured in moles.`;
+  const PHYSICS_PASSAGE = `Newton's second law connects net force, mass, and acceleration: F_net = ma. Net force is the vector sum of all forces on an object. In one dimension, choose a positive direction and give forces signs. A 3 kg cart has an 8 N force to the right and a 2 N force to the left. Taking right as positive, its net force is +6 N and its acceleration is +2 m/s². One newton (N) equals 1 kg·m/s². Acceleration describes a change in velocity per second; a positive acceleration does not by itself tell us which way the cart is moving. At constant mass, doubling net force doubles acceleration.`;
+  const STATS_DEMO = {
+    gaps: { looks_like_homework: false, prerequisites: [
+      savedPrereq("i.i.d.", "concept", 5, "i.i.d.", "The standard error formula assumes observations are independent and follow the same distribution."),
+      savedPrereq("standard deviation", "concept", 5, "standard deviation", "The standard error formula uses σ or s, which describe the spread of individual values."),
+      savedPrereq("respectively", "language", 4, "respectively", "This word pairs X̄ with sample mean and s with sample standard deviation in the stated order."),
+      savedPrereq("sampling distribution", "concept", 3, "sampling distribution", "The normal approximation concerns means from repeated samples, not the raw observations."),
+    ] },
+    diagnostic: { items: [
+      savedItem("i.i.d.", "Two observations are independent. If the first is unusually high, what must happen to the second?", ["It must also be unusually high", "It must be unusually low", "It need not change because of the first", "It must equal the first observation"], 2, "Independence means knowing one outcome does not change the probability distribution of the other."),
+      savedItem("standard deviation", "Group A is 9, 10, 11. Group B is 2, 10, 18. Which group has more spread around its mean?", ["Group A has greater spread", "Group B has greater spread", "Both groups have equal spread", "Both groups have zero spread"], 1, "Both means are 10, but group B's values lie farther from 10."),
+      savedItem("respectively", "In 'a and b are 4 and 9, respectively', what is b?", ["4", "5", "8", "9"], 3, "Respectively pairs the first with the first and the second with the second, so b is 9."),
+    ] },
+    recheck: { kind: "immediate_recheck", items: [
+      savedItem("i.i.d.", "Which plan best supports two independent observations from the same distribution?", ["Record one die roll twice", "Record two separate fair die rolls", "Copy one roll into two columns", "Count the same roll in two groups"], 1, "Two separate rolls of the same fair die have the same distribution and neither roll determines the other."),
+      savedItem("standard deviation", "Group X is 7, 8, 9. Group Y is 4, 8, 12. Which group has more spread around its mean?", ["Group X has greater spread", "Both groups have equal spread", "Group Y has greater spread", "Both groups have zero spread"], 2, "Both means are 8; deviations in Y are −4, 0, 4, larger in size than −1, 0, 1 in X."),
+      savedItem("respectively", "'p and q denote mass and speed, respectively.' What does p denote?", ["Mass", "Time", "Area", "Heat"], 0, "The first symbol p pairs with the first quantity, mass."),
+    ] },
+    bridges: {
+      "i.i.d.": savedBridge("Think of making a fresh fair die roll each time, using the same die.", "Independent means one outcome gives no information about another. Identically distributed means each observation follows the same probability distribution.", "The passage assumes X₁, …, Xₙ are i.i.d. Repeating a measurement under the same conditions may support that assumption; copying one value n times does not.", "独立同分布（i.i.d.）：各次观察互不影响，并且服从相同的概率分布。", "independientes e idénticamente distribuidas (i.i.d.): las observaciones son independientes y siguen la misma distribución."),
+      "standard deviation": savedBridge("It describes how spread out the individual values are around their mean.", "Standard deviation is the square root of an average squared distance from the mean; the sample formula uses n − 1 in its denominator.", "In the passage, σ is the population standard deviation and s is its sample estimate. They describe spread of observations; s/√n estimates the spread of sample means.", "标准差（standard deviation）：描述数据围绕平均值的分散程度；数值越大，数据通常越分散。", "desviación estándar (standard deviation): describe cuánto se dispersan los datos alrededor de su media."),
+      "respectively": savedBridge("It means 'in the same order': pair first with first, second with second.", "Respectively links two or more lists item by item in their stated order.", "'X̄ and s denote the sample mean and the sample standard deviation, respectively' means X̄ is the sample mean, and s is the sample standard deviation.", "分别（respectively）：按列出的顺序一一对应，第一项对应第一项，第二项对应第二项。", "respectivamente (respectively): relaciona los elementos en el mismo orden, primero con primero y segundo con segundo."),
+      "sampling distribution": savedBridge("Imagine repeatedly taking fresh samples of the same size and recording each sample's mean.", "A sampling distribution is the probability distribution of a statistic across repeated samples under the same sampling procedure.", "The passage says the sampling distribution of X̄ is approximately normal for large n. This does not say the individual observations must themselves be normal.", "抽样分布（sampling distribution）：重复抽样时，某个统计量（如样本均值）所形成的概率分布。", "distribución muestral (sampling distribution): distribución de un estadístico al repetir el mismo procedimiento de muestreo."),
+    },
+    minicheck: { questions: [
+      savedMini("easy", "Which expression estimates the standard error of X̄ in the passage?", ["s × √n", "s / n", "s / √n", "s × n"], 2, "The passage estimates σ/√n using s/√n."),
+      savedMini("medium", "If X̄ = 10, s = 4 and n = 16, what approximate 95% interval does the passage's formula give?", ["8.04 to 11.96", "6.08 to 13.92", "9.02 to 10.98", "2.16 to 17.84"], 0, "The estimated standard error is 4/√16 = 1, so the interval is 10 ± 1.96."),
+      savedMini("hard", "With s unchanged, what happens to s/√n when sample size rises from 25 to 100?", ["It becomes four times as large", "It becomes twice as large", "It stays at the same size", "It becomes half as large"], 3, "√n rises from 5 to 10, doubling the denominator and halving the estimated standard error."),
+    ] },
+    lessons: {
+      "iid": "Ask students whether writing the same die roll twice creates two independent observations. Contrast that with rolling the same fair die twice. Label 'independent' and 'same distribution' separately: neither roll determines the other, and both use probabilities 1/6. Return to i.i.d. in the reading before discussing σ/√n. Check understanding by asking whether two copied measurements meet the assumption (they do not). Independence is a sampling assumption to examine, not something guaranteed by having a long list.",
+      "standard deviation": "Write A: 9, 10, 11 and B: 2, 10, 18. Both means are 10, but ask students to compare distances from 10. B has more spread. Connect s to spread among observations, then distinguish s/√n as estimated spread among sample means. For n = 16 and s = 4, compute a standard error of 1. Check whether quadrupling n halves the standard error when s stays fixed (yes). Watch for treating standard deviation and standard error as interchangeable.",
+      "respectively": "Write 'X̄ and s denote mean and standard deviation, respectively.' Draw two arrows in order, then ask students to paraphrase the sentence without 'respectively.' Change the sentence to 'p and q denote mass and speed, respectively' and ask what p means (mass). Return to the passage and mark each symbol's role before using the confidence interval formula. Watch for reversing the pairings. Give English learners the paraphrase 'in that same order.'",
+    },
+  };
+  const CHEM_DEMO = {
+    gaps: { looks_like_homework: false, prerequisites: [
+      savedPrereq("ratio", "concept", 5, "ratio", "The equation's coefficients express how many molecules react relative to one another."),
+      savedPrereq("subscript", "concept", 5, "subscript", "You must read the small number in H₂O as an atom count within one molecule."),
+      savedPrereq("conserves", "language", 4, "conserves", "The word says the number of each kind of atom stays unchanged during a reaction."),
+      savedPrereq("coefficient", "concept", 3, "coefficients", "The number before a formula counts whole molecules or relative amounts in moles."),
+    ] },
+    diagnostic: { items: [
+      savedItem("ratio", "A mixture uses 2 red beads for every 1 blue bead. How many red beads go with 4 blue beads?", ["2 beads", "4 beads", "6 beads", "8 beads"], 3, "Scale both parts of 2:1 by 4, giving 8:4."),
+      savedItem("subscript", "How many oxygen atoms are in one CO₂ molecule?", ["1 atom", "2 atoms", "3 atoms", "4 atoms"], 1, "The subscript 2 after O counts two oxygen atoms."),
+      savedItem("conserves", "A process 'conserves the number of tokens'. What does this mean?", ["The token count stays the same", "The token count always doubles", "The token count always halves", "The token count becomes zero"], 0, "Conserves means the total quantity stays unchanged."),
+    ] },
+    recheck: { kind: "immediate_recheck", items: [
+      savedItem("ratio", "A mixture uses 3 yellow beads for every 2 green beads. How many yellow beads go with 6 green beads?", ["6 beads", "8 beads", "9 beads", "12 beads"], 2, "6 green beads is 3 times 2, so use 3 × 3 = 9 yellow beads."),
+      savedItem("subscript", "How many hydrogen atoms are in one NH₃ molecule?", ["1 atom", "2 atoms", "4 atoms", "3 atoms"], 3, "The subscript 3 after H counts three hydrogen atoms."),
+      savedItem("conserves", "A machine conserves mass while changing an object's shape. Which statement follows?", ["Its mass becomes zero", "Its mass remains unchanged", "Its mass always doubles", "Its mass always halves"], 1, "Conserving mass means keeping the same total mass, even when shape changes."),
+    ] },
+    bridges: {
+      "ratio": savedBridge("A ratio is a recipe that can be made bigger or smaller while keeping the same proportions.", "A ratio a:b compares quantities; multiplying both by the same positive number gives an equivalent ratio.", "The equation uses H₂:O₂:H₂O = 2:1:2. Multiply every part by 3 to get 6:3:6, the passage's example.", "比（ratio）：比较数量的关系；把各项同时乘以相同的正数，比例不变。", "razón (ratio): compara cantidades; multiplicar todas por el mismo número positivo mantiene la proporción."),
+      "subscript": savedBridge("The small number attached to an element tells you how many atoms of it belong inside one molecule.", "A subscript is a small number written below the line after a symbol. In a chemical formula it counts atoms of that element; no written number means one.", "H₂O has two H atoms and one O atom. Two H₂O molecules together have four H atoms and two O atoms.", "下标（subscript）：化学式中元素右下方的小数字，表示一个分子中该元素的原子数。", "subíndice (subscript): número pequeño que indica cuántos átomos de un elemento hay en una molécula."),
+      "conserves": savedBridge("You can rearrange a set of building blocks without creating or removing any blocks.", "To conserve a quantity means to keep its total unchanged during a process.", "2H₂ + O₂ has four H atoms and two O atoms before reaction. 2H₂O has the same four H and two O atoms afterward.", "守恒（conserves）：变化前后某个总量保持不变；这里每种元素的原子总数不变。", "conserva (conserves): mantiene una cantidad total sin cambios; aquí se conserva el número de átomos de cada elemento."),
+      "coefficient": savedBridge("The big number in front counts complete copies of the formula that follows it.", "A chemical coefficient multiplies the entire formula. It expresses relative numbers of molecules or amounts in moles.", "In 2H₂O, the coefficient 2 means two water molecules. Each has two H atoms and one O atom, for four H atoms and two O atoms total.", "系数（coefficient）：化学式前的数字，表示完整分子的个数或物质的量之间的比例。", "coeficiente (coefficient): número delante de una fórmula que multiplica toda la fórmula y expresa cantidades relativas."),
+    },
+    minicheck: { questions: [
+      savedMini("easy", "Which change balances an equation while keeping the same chemical substances?", ["Change the subscripts in formulas", "Change the element symbols used", "Change the coefficients in front", "Change the atom types in products"], 2, "Changing coefficients adjusts quantities; changing subscripts or elements changes substances."),
+      savedMini("medium", "In 2H₂ + O₂ → 2H₂O, how many H₂O molecules form from 4 H₂ molecules and 2 O₂ molecules reacting completely?", ["2 molecules", "4 molecules", "6 molecules", "8 molecules"], 1, "Double 2:1:2 to get 4:2:4."),
+      savedMini("hard", "Why is changing H₂O to H₂O₂ not a valid way to balance water formation?", ["It changes the substance produced", "It changes only the molecule count", "It leaves the oxygen count unchanged", "It removes all hydrogen from the product"], 0, "H₂O₂ has a different composition, so changing the subscript changes the substance."),
+    ] },
+    lessons: {
+      "ratio": "Use colored counters to build two H₂ molecules and one O₂ molecule. Rearrange their atoms into two H₂O molecules without adding counters. Write 2:1:2 and scale all parts by 3 to connect to 6:3:6 in the reading. Ask how many water molecules form from 4 H₂ and 2 O₂ (4). Watch for adding 2 to each ratio part instead of multiplying every part by the same factor. Emphasize that these are counts of molecules, not separate counts of each atom type.",
+      "subscript": "Write H₂O and draw one molecule containing two H atoms and one O atom. Then write 2H₂O and draw two complete copies, counting four H atoms and two O atoms. Ask students to count H atoms in 3H₂O (6) and O atoms in CO₂ (2). Return to the reading's warning about changing subscripts. Watch for treating a subscript as the number of molecules; it instead belongs to the formula of one molecule.",
+      "conserves": "Paraphrase 'conserves' as 'keeps the total unchanged.' Count H and O atoms on each side of 2H₂ + O₂ → 2H₂O: four H and two O on both sides. Ask students to explain why the number of molecules changes from three to two although atom counts stay the same. Use building blocks to show rearrangement. Watch for believing conservation requires the number of molecules to stay fixed. For English learners, contrast 'same total atoms' with 'same arrangement.'",
+    },
+  };
+  const PHYSICS_DEMO = {
+    gaps: { looks_like_homework: false, prerequisites: [
+      savedPrereq("signed quantities", "concept", 5, "positive direction", "Opposite force directions must have opposite signs before they are added."),
+      savedPrereq("units", "concept", 5, "kg·m/s²", "The relation between newtons, kilograms and m/s² makes F/m an acceleration."),
+      savedPrereq("at constant", "language", 4, "At constant mass", "The final comparison holds mass fixed while changing net force."),
+      savedPrereq("velocity", "concept", 3, "velocity", "Acceleration describes a change in velocity, which includes direction."),
+    ] },
+    diagnostic: { items: [
+      savedItem("signed quantities", "Right is positive. What is the sum of a +7 N force and a −3 N force?", ["−10 N", "−4 N", "+4 N", "+10 N"], 2, "Add signed values: 7 + (−3) = +4 N."),
+      savedItem("units", "One N equals one kg·m/s². What unit results from N divided by kg?", ["m/s", "m/s²", "kg/s", "kg·m"], 1, "Dividing kg·m/s² by kg cancels kilograms, leaving m/s²."),
+      savedItem("at constant", "A result is measured 'at constant temperature'. What happens to temperature during the comparison?", ["It is held at the same value", "It rises by the same amount", "It falls by the same amount", "It always becomes zero"], 0, "At constant means the named quantity is held unchanged."),
+    ] },
+    recheck: { kind: "immediate_recheck", items: [
+      savedItem("signed quantities", "East is positive. What is the sum of a +9 N force and a −4 N force?", ["−13 N", "−5 N", "+13 N", "+5 N"], 3, "9 + (−4) = +5 N, which points east."),
+      savedItem("units", "Using 1 N = 1 kg·m/s², which expression has the units of force?", ["kg × m/s", "kg ÷ m/s²", "kg × m/s²", "m/s² ÷ kg"], 2, "Multiplying mass in kg by acceleration in m/s² gives newtons."),
+      savedItem("at constant", "An experiment changes force 'at constant mass'. Which quantity is held fixed?", ["Force", "Mass", "Speed", "Time"], 1, "At constant mass means mass stays fixed while another quantity changes."),
+    ] },
+    bridges: {
+      "signed quantities": savedBridge("Signs let a number show direction, so pushes in opposite directions can partly cancel.", "In one dimension choose a positive direction. Quantities in that direction are positive; opposite ones are negative. Add their signed values.", "The passage chooses right as positive: +8 N + (−2 N) = +6 N. This net force is 6 N to the right.", "带符号的量（signed quantities）：先规定正方向；同向为正，反向为负，再进行加减。", "cantidades con signo (signed quantities): se elige una dirección positiva; la opuesta lleva signo negativo."),
+      "units": savedBridge("Units tell you what kind of quantity a number measures, like labels that travel through a calculation.", "A unit specifies a measurement scale. In F = ma, 1 N = 1 kg·m/s², so dividing force by mass gives m/s².", "The cart's acceleration is 6 N / 3 kg = 2 m/s². The kg cancels in (kg·m/s²)/kg.", "单位（units）：说明测量的量和尺度；N/kg 等于 m/s²，是加速度的单位。", "unidades (units): indican qué se mide; N/kg equivale a m/s², la unidad de aceleración."),
+      "at constant": savedBridge("To see what one change does, keep another quantity the same during the comparison.", "'At constant mass' means mass does not change between the situations being compared. Constant does not mean zero.", "The passage doubles force while keeping mass fixed. In a = F/m the numerator doubles and the denominator stays the same, so a doubles.", "保持不变（at constant）：比较不同情况时，指定的量保持相同；这里质量不变，并非质量为零。", "manteniendo constante (at constant): la cantidad indicada no cambia durante la comparación; constante no significa cero."),
+      "velocity": savedBridge("Velocity tells you both how fast something moves and which direction it moves in.", "Velocity is displacement per unit time with a direction. In one dimension its sign follows the chosen positive direction.", "A cart moving left can have negative velocity and positive acceleration: it may be slowing down while still moving left. The passage's positive acceleration alone does not tell its motion direction.", "速度（velocity）：包含快慢和方向；一维运动中，正负号表示相对于所选正方向的方向。", "velocidad (velocity): incluye rapidez y dirección; su signo depende de la dirección elegida como positiva."),
+    },
+    minicheck: { questions: [
+      savedMini("easy", "According to the passage, what is net force?", ["The largest of the individual forces", "The sum of all forces with directions", "The mass multiplied by the velocity", "The distance divided by elapsed time"], 1, "Net force is the vector sum of all forces acting on an object."),
+      savedMini("medium", "A 2 kg cart feels 10 N right and 4 N left. Taking right as positive, what is its acceleration?", ["−7 m/s²", "−3 m/s²", "+7 m/s²", "+3 m/s²"], 3, "Net force is 10 − 4 = 6 N, and 6 N / 2 kg = +3 m/s²."),
+      savedMini("hard", "Why does a positive acceleration not prove the cart is moving right?", ["It describes velocity change, not current direction", "It makes the cart's velocity positive at every moment", "It shows that every force points in the same direction", "It means that the cart has zero velocity at that moment"], 0, "A left-moving cart can have rightward acceleration and slow down while still moving left."),
+    ] },
+    lessons: {
+      "signed quantities": "Choose right as positive and draw forces +8 N and −2 N on the cart from the passage. Add them on a number line to get +6 N, then divide by 3 kg for +2 m/s². Ask students to find net force for +7 N and −3 N (+4 N). Watch for adding magnitudes to get 10 N. Explain that the sign follows a chosen coordinate direction; it is not a label for whether a force is good or bad.",
+      "units": "Write 1 N = 1 kg·m/s² and carry units through a = F/m using the passage's 6 N and 3 kg. Cancel kg to show why the result is 2 m/s². Ask students to give both the number and units for 12 N / 4 kg (3 m/s²). Contrast m/s, a velocity unit, with m/s², an acceleration unit. Watch for answers with the right number but units of N or m/s.",
+      "at constant": "Paraphrase 'at constant mass' as 'keep mass the same.' Compare F = 6 N and F = 12 N for a 3 kg cart: acceleration rises from 2 to 4 m/s². Then ask whether doubling both force and mass doubles acceleration (no: their ratio stays the same). Return to the final sentence in the passage and underline the condition. Watch for ignoring that condition or treating 'constant' as 'zero.' Let English learners practice 'holding ___ fixed.'",
+    },
+  };
+  const DEMOS = [
+    { id: "linear-algebra", title: "Linear algebra: orthogonal projection", courseId: "linear-algebra", passage: DEMO_PASSAGE, data: DEMO },
+    { id: "statistics", title: "Statistics: sample means", courseId: "statistics", passage: STATS_EXAMPLE, data: STATS_DEMO },
+    { id: "chemistry", title: "Chemistry: balancing reactions", courseId: "chemistry", passage: CHEM_PASSAGE, data: CHEM_DEMO },
+    { id: "physics", title: "Physics: forces and acceleration", courseId: "physics", passage: PHYSICS_PASSAGE, data: PHYSICS_DEMO },
+  ];
+  const selectedDemo = () => DEMOS.find((d) => d.id === (S.session ? S.session.demo_id : S.demoId)) || DEMOS[0];
+  const demoData = () => selectedDemo().data;
+  const demoBridge = (term) => demoData().bridges[term] || null;
 
   // Malformed replies used by the "simulate malformed AI output" testing switch.
   const FAULTS = [
@@ -1349,6 +1468,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       completed_at: null,
       completed: false,
       source: demo ? "demo" : "pasted",
+      demo_id: demo ? S.demoId : null,
       ai_mode: demo ? "saved-demo" : aiModeLabel(),
       course: courseId,
       home_language: langId,
@@ -1432,6 +1552,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     lastStudentView: "home",
     draft: "",
     courseId: "linear-algebra",
+    demoId: "linear-algebra",
     langId: "en",
     homeError: null,
     run: 0,
@@ -1517,7 +1638,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
         prompt: promptDetectGaps({ passage: S.passage, courseLabel: course().label }),
         validate: (v) => validateGaps(v),
         schema: SCHEMA.gaps,
-        canned: S.isDemo ? clone(DEMO.gaps) : saved ? clone(saved) : undefined,
+        canned: S.isDemo ? clone(demoData().gaps) : saved ? clone(saved) : undefined,
       }, runOpts()));
       if (run !== S.run) return;
       if (!S.isDemo && !saved && report.strict) rememberPassage(passageKey(), "gaps", clone(result));
@@ -1559,7 +1680,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     try {
       const dkey = "diag:" + targets.map((t) => normTerm(t.term)).join("|");
       const saved = S.isDemo ? null : (passageCache()[passageKey()] || {})[dkey];
-      const canned = S.isDemo ? clone(DEMO.diagnostic) : saved ? clone(saved) : undefined;
+      const canned = S.isDemo ? clone(demoData().diagnostic) : saved ? clone(saved) : undefined;
       const report = {};
       const result = await generateJSON("makeDiagnostic", Object.assign({ report,
         prompt: promptDiagnostic({ passage: S.passage, courseLabel: course().label, targets, homework: homework() }),
@@ -1637,7 +1758,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     saveSession();
     go("recheck");
     try {
-      const canned = S.isDemo ? { kind: "immediate_recheck", items: clone(DEMO.recheck.items.filter((q) => targets.some((t) => t.term === q.term))) } : undefined;
+      const canned = S.isDemo ? { kind: "immediate_recheck", items: clone(demoData().recheck.items.filter((q) => targets.some((t) => t.term === q.term))) } : undefined;
       const result = await generateJSON("makeRecheck", Object.assign({
         prompt: promptRecheck({ passage: S.passage, courseLabel: course().label, targets, homework: homework() }),
         schema: SCHEMA.recheck, validate: (v) => validateRecheck(v, targets), canned,
@@ -1709,7 +1830,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
         prompt: promptMiniCheck({ passage: S.passage, courseLabel: course().label, homework: homework() }),
         validate: (v, lenient) => validateMiniCheck(v, lenient),
         schema: SCHEMA.minicheck,
-        canned: S.isDemo ? clone(DEMO.minicheck) : saved ? clone(saved) : undefined,
+        canned: S.isDemo ? clone(demoData().minicheck) : saved ? clone(saved) : undefined,
       }, runOpts()));
       if (run !== S.run) return;
       if (!S.isDemo && !saved && report.strict) rememberPassage(passageKey(), "mini", { questions: result.questions.map((q) => Object.assign({ answer_text: q.options[q.correct_index] }, q)) });
@@ -1828,7 +1949,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   const errorBox = (msg, retryAction, extra = "") => `<div class="callout bad" role="alert"><strong>That didn't work.</strong><p>${esc(msg)}</p><div class="actions">${retryAction ? `<button type="button" class="btn primary small" data-action="${retryAction}" data-autofocus>Try again</button>` : ""}${extra}<button type="button" class="btn secondary small" data-action="demoFallback">Try saved demo instead</button></div></div>`;
   const homeworkNote = () => (homework() ? `<div class="callout warn"><strong>This looks like a homework problem.</strong><p>Bridge explains the background ideas and gives hints. It won't give you the final answer, so the thinking stays yours.</p></div>` : "");
   const glossFor = (data) => (lang().id !== "en" && S.showGloss && data && data.gloss ? `<p class="gloss" lang="${lang().tag}"><span class="gloss-label">${esc(lang().label)}</span><span>${esc(data.gloss)}</span></p>` : "");
-  const glossToggle = () => (lang().id === "en" ? "" : `<label class="toggle"><input type="checkbox" id="glossToggle" data-change="gloss" ${S.showGloss ? "checked" : ""}> Show ${esc(lang().label)} glosses</label>`);
+  const glossToggle = () => (lang().id === "en" ? "" : `<label class="toggle"><input type="checkbox" id="glossToggle" data-change="gloss" ${S.showGloss ? "checked" : ""}> Show ${esc(lang().label)} glosses</label>${S.isDemo ? '<p class="small muted">Saved glosses: not yet reviewed by a native-speaking teacher.</p>' : ""}`);
 
   VIEWS.home = () => {
     const due = dueReviews();
@@ -1851,11 +1972,12 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
             <h1 id="homeTitle" tabindex="-1" data-focus>Find what your reading assumes.</h1>
             <p class="lede">Intro STEM texts take background ideas and academic words for granted. Bridge finds them, checks which ones you really have, and teaches only the missing pieces, right before you need them.</p>
             <fieldset class="seg hero-lang"><legend class="small">Glosses in your home language</legend>${heroLang}</fieldset>
+            <div class="field"><label class="field-label" for="demoSelect">Choose an offline demo</label><select id="demoSelect" data-change="demo">${DEMOS.map((d) => `<option value="${d.id}" ${d.id === S.demoId ? "selected" : ""}>${esc(d.title)}</option>`).join("")}</select></div>
             <div class="actions">
               <button type="button" class="btn primary" data-action="demo">Try the demo</button>
               <button type="button" class="btn secondary" data-action="focusPassage">Use my own passage</button>
             </div>
-            <p class="hero-note">No sign-up. The demo runs instantly with saved answers on a linear algebra passage.</p>
+            <p class="hero-note">No sign-up. All four demos run with saved content, even without live AI.</p>
           </div>
           <figure class="hero-demo" data-ui role="img" aria-label="Example: in a linear algebra passage, Bridge highlights v · u and explains the dot product, with a Chinese gloss.">
             <div class="hd-top" aria-hidden="true"><b>Orthogonal projection</b><span>Intro linear algebra</span></div>
@@ -2181,15 +2303,15 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   function templateLesson(e) {
     return `Students most often missed “${e.term}” (${e.missed} of ${e.checked} checked). A 5-minute plan: ask the class to say in their own words what “${e.term}” means, then show the one place in the reading where it is needed${e.why ? ` (${e.why.replace(/\.$/, "")})` : ""}. Work one tiny example on the board, and give one similar mini-question for students to try on whiteboards. Close by naming the most common wrong answer you saw.${e.type === "language" ? " Because this is an academic-language gap, give a plain-English paraphrase and point to where the phrase appears in the reading." : ""}`;
   }
-  const DEMO_PASSAGE_ID = hashText(DEMO_PASSAGE);
   const lessonCacheKey = (e) => `${e.key}|${[...e.passageIds].sort().join(",")}`;
   function lessonFor(e) {
     if (!e) return null;
     const cache = store.get(K.lessons, {}) || {};
     const hit = cache[lessonCacheKey(e)];
     if (hit && typeof hit.text === "string") return { text: hit.text, source: "Drafted by AI for these passages", ai: true };
-    // The saved demo lesson cites the demo passage's numbers, so it is used only when every session was on that passage.
-    if (DEMO.lessons[e.key] && [...e.passageIds].every((id) => id === DEMO_PASSAGE_ID)) return { text: DEMO.lessons[e.key], source: "Saved example (written for the demo passage)" };
+    // Saved lessons cite a specific passage: never reuse one for another reading.
+    const demo = DEMOS.find((d) => [...e.passageIds].every((id) => id === hashText(d.passage)));
+    if (demo && demo.data.lessons[e.key]) return { text: demo.data.lessons[e.key], source: "Saved example (written for this demo passage)" };
     return null;
   }
   async function draftLesson(e) {
@@ -2796,7 +2918,7 @@ void main() {
     admin: () => go("admin"),
     settings: () => { S.settingsMsg = ""; go("settings"); },
     theme: () => { theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; applyTheme(theme, true); toast(`Theme: ${theme === "system" ? "match system" : theme}`); },
-    demo: () => { S.courseId = "linear-algebra"; S.session = null; startSession({ passage: DEMO_PASSAGE, demo: true }); },
+    demo: () => { S.session = null; const d = selectedDemo(); S.courseId = d.courseId; startSession({ passage: d.passage, demo: true }); },
     demoFallback: () => { settings.fault = "off"; saveSettings(); actions.demo(); },
     focusPassage: () => { const ta = $("#passageInput"); if (ta) { ta.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" }); tryFocus(ta); } },
     fillStats: () => { S.draft = STATS_EXAMPLE; S.courseId = "statistics"; S.homeError = null; render(); const ta = $("#passageInput"); if (ta) ta.focus(); },
@@ -2924,6 +3046,7 @@ void main() {
     const t = ev.target;
     const kind = t.dataset ? t.dataset.change : null;
     if (kind === "course") S.courseId = t.value;
+    else if (kind === "demo") S.demoId = t.value;
     else if (kind === "lang") { S.langId = t.value; document.querySelectorAll('[data-change="lang"]').forEach((el) => { if (el.tagName === "SELECT") el.value = t.value; else el.checked = el.value === t.value; }); }
     else if (kind === "gloss") { S.showGloss = t.checked; render(); }
     else if (kind === "includeExamples") { S.admin.includeExamples = t.checked; render(); }
@@ -2980,7 +3103,7 @@ void main() {
 
   // Test hooks for scripted checks; they only read state or call the same functions the buttons call.
   window.BridgeTest = {
-    demos: () => [{ id: "linear-algebra", title: "Orthogonal projection", passage: DEMO_PASSAGE, data: clone(DEMO) }],
+    demos: () => clone(DEMOS),
     sessions: loadSessions,
     reviews: loadReviews,
     exportJSON: () => sessionsJSON(loadSessions()),
