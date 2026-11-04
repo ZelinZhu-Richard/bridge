@@ -640,7 +640,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     },
   };
 
-  const DEFAULT_SETTINGS = { model: "claude-opus-5-5", rememberKey: false, apiKey: "", fault: "off", clockOffsetDays: 0 };
+  const DEFAULT_SETTINGS = { model: "claude-sonnet-5-5", rememberKey: false, apiKey: "", fault: "off", clockOffsetDays: 0 };
   const settings = Object.assign({}, DEFAULT_SETTINGS, store.get(K.settings, {}) || {});
   function saveSettings() {
     const out = Object.assign({}, settings);

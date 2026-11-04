@@ -12,7 +12,7 @@ const MAX_TOKENS = 16000;
 const ANTHROPIC_VERSION = "2026-10-21";
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 const DEFAULT_API_URL = "https://api.anthropic.com";
-const DEFAULT_MODEL = "claude-opus-5-5";
+const DEFAULT_MODEL = "claude-sonnet-5-5";
 const HOUR_MS = 3600000;
 const DAY_MS = 86400000;
 

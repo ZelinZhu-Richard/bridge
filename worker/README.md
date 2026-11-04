@@ -13,7 +13,7 @@ npm run deploy
 npx wrangler secret put ANTHROPIC_API_KEY
 ```
 
-`wrangler login` opens Cloudflare in your browser (a free account is enough). The first deploy may ask you to pick a `workers.dev` subdomain, and it prints the URL, which looks like `https://bridge-ai.<account-subdomain>.workers.dev`. `wrangler secret put` then asks you to paste the key. Check that it works: open `<that URL>/health`. You should see `{"ok":true,"model":"claude-opus-5-5","configured":true}`.
+`wrangler login` opens Cloudflare in your browser (a free account is enough). The first deploy may ask you to pick a `workers.dev` subdomain, and it prints the URL, which looks like `https://bridge-ai.<account-subdomain>.workers.dev`. `wrangler secret put` then asks you to paste the key. Check that it works: open `<that URL>/health`. You should see `{"ok":true,"model":"claude-sonnet-5-5","configured":true}`.
 
 Then put that URL in `../site-ai-url.txt`, run `../build.sh`, and push: the site uses the Worker from then on.
 
@@ -23,7 +23,7 @@ Then put that URL in `../site-ai-url.txt`, run `../build.sh`, and push: the site
 
 | Var | Default | Meaning |
 | --- | --- | --- |
-| `MODEL` | `claude-opus-5-5` | Model for every request |
+| `MODEL` | `claude-sonnet-5-5` | Model for every request |
 | `ALLOWED_ORIGINS` | GitHub Pages site, `localhost:8765`, `127.0.0.1:8765` | Comma-separated sites that may call the Worker |
 | `DAILY_LIMIT` | `400` | Requests per UTC day, all visitors together |
 | `IP_HOURLY_LIMIT` | `60` | Requests per visitor IP per hour (IPv6: per /64) |
