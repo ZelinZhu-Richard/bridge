@@ -32,7 +32,7 @@ const action = (page, name) => page.locator(`[data-action="${name}"]`).first().c
 const waitView = (page, view) => page.waitForFunction((v) => window.BridgeTest.state().view === v, view);
 const session = (page) => page.evaluate(() => window.BridgeTest.state().session);
 
-async function newPage({ reply, blockedStorage = false } = {}) {
+async function newPage({ reply, blockedStorage = false, speechMock = false, noSpeech = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce", acceptDownloads: true });
   const page = await context.newPage();
   page.on("pageerror", (e) => errors.push(e.stack));
@@ -40,6 +40,15 @@ async function newPage({ reply, blockedStorage = false } = {}) {
   if (blockedStorage) await page.addInitScript(() => {
     Object.defineProperty(window, "localStorage", { get() { throw new DOMException("Blocked", "SecurityError"); } });
   });
+  if (speechMock || noSpeech) await page.addInitScript(({ noSpeech }) => {
+    window.__spoken = []; window.__speechCancels = 0;
+    Object.defineProperty(window, "speechSynthesis", { value: noSpeech ? undefined : {
+      getVoices: () => ["en-US", "zh-CN", "es-ES"].map((lang) => ({ lang, name: lang, localService: true })),
+      cancel: () => { window.__speechCancels++; },
+      speak: (u) => window.__spoken.push({ text: u.text, lang: u.lang, voice: u.voice?.lang }),
+    } });
+    Object.defineProperty(window, "SpeechSynthesisUtterance", { value: noSpeech ? undefined : class { constructor(text) { this.text = text; } } });
+  }, { noSpeech });
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (url.origin === base || url.protocol === "blob:") return route.continue();
@@ -209,8 +218,9 @@ try {
     }
   }
 
-  for (const mode of ["once", "always", "site-down", "site-rate", "site-daily"]) {
+  for (const demo of demos) for (const mode of ["once", "always", "site-down", "site-rate", "site-daily"]) {
     const page = await newPage();
+    if (await page.locator("#demoSelect").count()) await page.locator("#demoSelect").selectOption(demo.id);
     await action(page, "settings");
     await page.locator("#faultSelect").selectOption(mode);
     await action(page, "home");
@@ -225,7 +235,18 @@ try {
     }
     await page.waitForFunction(() => window.BridgeTest.state().diag?.status === "ready");
     await page.context().close();
-    console.log(`PASS fault simulator: ${mode}, recovery to saved demo`);
+    console.log(`PASS ${demo.id} fault simulator: ${mode}, recovery to saved demo`);
+  }
+
+  for (const [status, type] of [[429, "bridge_rate_limit"], [429, "bridge_daily_limit"], [503, "bridge_not_configured"], [503, "bridge_unavailable"]]) {
+    const page = await newPage({ reply: (route) => route.fulfill({ status, json: { error: { type } } }) });
+    await action(page, "fillStats");
+    await page.locator('#inputForm button[type="submit"]').click();
+    await page.locator('[data-action="demoFallback"]').waitFor();
+    check((await page.locator('[role="alert"]').innerText()).length > 50, `real HTTP ${status} ${type} is explained`);
+    await action(page, "demoFallback"); await action(page, "startDiag");
+    await page.waitForFunction(() => window.BridgeTest.state().diag?.status === "ready");
+    await page.context().close();
   }
 
   // Live transport, deterministic replies: a length clue retries once, then flags
@@ -264,6 +285,29 @@ try {
   await startDemo(blocked, demos[0].id, "en");
   await finishLoop(blocked, { language: "en", missCount: 1 });
   await blocked.context().close();
+  for (const language of ["zh", "es"]) {
+    const page = await newPage({ speechMock: true });
+    await startDemo(page, demos[0].id, language);
+    await quickCheck(page, 1);
+    await page.getByRole("button", { name: "Read explanation aloud", exact: true }).click();
+    await page.getByRole("button", { name: "Read gloss aloud", exact: true }).click();
+    let spoken = await page.evaluate(() => window.__spoken);
+    check(spoken[0].lang === "en-US" && spoken[0].voice === "en-US", "English explanation uses English voice");
+    check(spoken[1].lang.startsWith(language) && spoken[1].voice.startsWith(language), "gloss uses a matching available voice");
+    await action(page, "stopSpeech");
+    check(await page.evaluate(() => window.__speechCancels >= 3), "stop reading cancels speech");
+    await action(page, "startRecheck");
+    await page.waitForFunction(() => window.BridgeTest.state().recheck?.status === "ready");
+    await action(page, "recheckUnsure"); await action(page, "recheckNext");
+    await page.getByRole("button", { name: "Read passage aloud", exact: true }).click();
+    spoken = await page.evaluate(() => window.__spoken);
+    check(spoken.at(-1).lang === "en-US" && spoken.at(-1).text === demos[0].passage, "whole passage read in English");
+    await page.context().close();
+  }
+  const unsupported = await newPage({ noSpeech: true });
+  await startDemo(unsupported, demos[0].id, "zh"); await quickCheck(unsupported, 1);
+  check(await unsupported.locator('[data-action="speak"]').count() === 0, "speaker buttons hidden where unsupported");
+  await unsupported.context().close();
   check(errors.length === 0, `zero uncaught page errors: ${errors.join("\n")}`);
   check(unexpected.length === 0, "saved demos and fault simulations made zero AI generation requests");
   console.log(`PASS ${checks} assertions; ${demos.length} saved demo(s); zero uncaught page errors; build matches app.html`);

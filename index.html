@@ -673,7 +673,38 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   const MAX_PASSAGE = 4000;
   const ICON = {
     lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>',
+    speaker: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4zM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></svg>',
   };
+
+  const canSpeak = () => { try { return !!window.speechSynthesis && typeof window.SpeechSynthesisUtterance === "function"; } catch { return false; } };
+  let speechRun = 0, readingAloud = false;
+  const speakButton = (text, language = "en-US", label = "Read aloud") => canSpeak() && text ? `<button type="button" class="btn ghost small" data-action="speak" data-speech-lang="${esc(language)}" data-speech-text="${esc(text)}" aria-label="${esc(label)}">${ICON.speaker}<span>${esc(label)}</span></button>` : "";
+  function stopSpeech() {
+    speechRun++; readingAloud = false;
+    try { if (canSpeak()) window.speechSynthesis.cancel(); } catch { /* optional browser feature */ }
+    renderBanners();
+  }
+  function readAloud(el) {
+    if (!canSpeak()) return;
+    try {
+      const synth = window.speechSynthesis;
+      stopSpeech();
+      const run = speechRun;
+      const utterance = new window.SpeechSynthesisUtterance(el.dataset.speechText);
+      utterance.lang = el.dataset.speechLang || "en-US";
+      const primary = utterance.lang.split("-")[0];
+      const voices = synth.getVoices().filter((v) => v.lang.toLowerCase().split(/[-_]/)[0] === primary);
+      const voice = voices.find((v) => v.localService) || voices[0];
+      if (voice) utterance.voice = voice;
+      const finish = () => { if (run === speechRun) { readingAloud = false; renderBanners(); } };
+      utterance.onend = finish;
+      utterance.onerror = (e) => { finish(); if (!["interrupted", "canceled"].includes(e.error)) toast("Read aloud isn't available for this voice. You can keep reading the text."); };
+      readingAloud = true; renderBanners();
+      synth.speak(utterance);
+      toast("Reading aloud. Choose Stop reading to stop.");
+    } catch { readingAloud = false; renderBanners(); toast("Read aloud isn't available in this browser. You can keep reading the text."); }
+  }
+  window.addEventListener("pagehide", stopSpeech);
 
   // ---------- Built-in demo: saved outputs so "Try demo" runs instantly, offline ----------
   const DEMO_PASSAGE = `Orthogonal projection. Let u and v be vectors in ℝⁿ with u ≠ 0. The orthogonal projection of v onto u is
@@ -1590,6 +1621,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   // ---------- Flow ----------
   const sessionOpen = () => !!(S.session && !S.session.completed && S.lastStudentView !== "home");
   function go(view) {
+    if (view !== S.view) stopSpeech();
     const leavingOpenSession = view === "home" && sessionOpen();
     S.view = view;
     if (PHASE_OF[view] !== undefined && !leavingOpenSession) S.lastStudentView = view;
@@ -1948,7 +1980,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   const loadingView = (eyebrow, line) => `<section class="loading"><p class="eyebrow">${esc(eyebrow)}</p><h2 tabindex="-1" data-focus>${esc(line)}</h2><div class="loading-line"><span class="spinner" aria-hidden="true"></span><span>${S.isDemo ? "Loading the saved demo…" : "Asking the AI. This usually takes 10 to 30 seconds."}</span></div><div class="skeleton" aria-hidden="true"><i></i><i></i><i></i></div></section>`;
   const errorBox = (msg, retryAction, extra = "") => `<div class="callout bad" role="alert"><strong>That didn't work.</strong><p>${esc(msg)}</p><div class="actions">${retryAction ? `<button type="button" class="btn primary small" data-action="${retryAction}" data-autofocus>Try again</button>` : ""}${extra}<button type="button" class="btn secondary small" data-action="demoFallback">Try saved demo instead</button></div></div>`;
   const homeworkNote = () => (homework() ? `<div class="callout warn"><strong>This looks like a homework problem.</strong><p>Bridge explains the background ideas and gives hints. It won't give you the final answer, so the thinking stays yours.</p></div>` : "");
-  const glossFor = (data) => (lang().id !== "en" && S.showGloss && data && data.gloss ? `<p class="gloss" lang="${lang().tag}"><span class="gloss-label">${esc(lang().label)}</span><span>${esc(data.gloss)}</span></p>` : "");
+  const glossFor = (data) => (lang().id !== "en" && S.showGloss && data && data.gloss ? `<p class="gloss" lang="${lang().tag}"><span class="gloss-label">${esc(lang().label)}</span><span>${esc(data.gloss)}</span></p>${speakButton(data.gloss, lang().id === "zh" ? "zh-CN" : "es-ES", "Read gloss aloud")}` : "");
   const glossToggle = () => (lang().id === "en" ? "" : `<label class="toggle"><input type="checkbox" id="glossToggle" data-change="gloss" ${S.showGloss ? "checked" : ""}> Show ${esc(lang().label)} glosses</label>${S.isDemo ? '<p class="small muted">Saved glosses: not yet reviewed by a native-speaking teacher.</p>' : ""}`);
 
   VIEWS.home = () => {
@@ -2064,7 +2096,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
           <p class="small muted">Importance ${sel.importance} of 5${targets.has(sel.pi) ? " · included in the quick check" : ""}</p>
         </div>
       </div>
-      <details class="passage-peek"><summary>Show the passage</summary><div class="passage">${esc(S.passage)}</div></details>
+      <details class="passage-peek"><summary>Show the passage</summary>${speakButton(S.passage, "en-US", "Read passage aloud")}<div class="passage">${esc(S.passage)}</div></details>
       <div class="actions"><button type="button" class="btn primary" data-action="startDiag" data-autofocus>Check what I already know (${n} ${n === 1 ? "question" : "questions"})</button></div>
       <p class="small muted">Bridge doesn't rely on “I already know that.” It asks one short question about each of the top ${n}, then teaches only what you miss.</p>`;
   };
@@ -2106,10 +2138,11 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     if (!b || b.status === "loading") return `<div class="loading-line small"><span class="spinner" aria-hidden="true"></span><span>Writing a short explanation of ${esc(p.term)}…</span></div><div class="skeleton" aria-hidden="true"><i></i><i></i><i></i></div>`;
     if (b.status === "error") return errorBox(b.error, "retryBridge").replace('data-action="retryBridge"', `data-action="retryBridge" data-pi="${pi}"`);
     const d = b.data;
+    const listen = speakButton([d.intuition, d.definition, d.example].join(" "), "en-US", "Read explanation aloud");
     if (compact) {
-      return `${glossFor(d)}<dl class="kv"><dt>Idea</dt><dd>${esc(d.intuition)}</dd><dt>Means</dt><dd>${esc(d.definition)}</dd><dt>Here</dt><dd>${esc(d.example)}</dd></dl>`;
+      return `${listen}${glossFor(d)}<dl class="kv"><dt>Idea</dt><dd>${esc(d.intuition)}</dd><dt>Means</dt><dd>${esc(d.definition)}</dd><dt>Here</dt><dd>${esc(d.example)}</dd></dl>`;
     }
-    return `${glossFor(d)}
+    return `${listen}${glossFor(d)}
       <div class="bc-step"><h4>Intuition</h4><p>${esc(d.intuition)}</p></div>
       <div class="bc-step"><h4>Definition</h4><p>${esc(d.definition)}</p></div>
       <div class="bc-step"><h4>Example from your passage</h4><p>${esc(d.example)}</p></div>`;
@@ -2167,6 +2200,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       <p class="muted">${S.bridgeSkipped ? "Marked words are ideas this passage assumes." : "Highlighted words are the ones you just learned."} Tap any marked word to see its explanation.</p>
       <div class="legend">${S.bridgeSkipped ? "" : `<span><span class="swatch-hl">highlight</span> you just learned it</span>`}<span><span class="swatch-dot">dotted</span> other assumed ideas</span></div>
       ${glossToggle()}
+      ${speakButton(S.passage, "en-US", "Read passage aloud")}
       <div class="passage">${html}</div>
       <div class="term-panel" id="termPanel" aria-live="polite">${panel}</div>
       ${notInText.length ? `<div class="stack"><p class="small muted">Also assumed, but not written out in the text:</p><div class="chips">${notInText.map((q) => `<button type="button" class="chip ${q.type}" data-action="openTerm" data-pi="${q.pi}"><span class="chip-term">${esc(q.term)}</span></button>`).join("")}</div></div>` : ""}
@@ -2679,6 +2713,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   }
   function renderBanners() {
     const b = [];
+    if (readingAloud && canSpeak()) b.push('<div class="banner"><span>Reading aloud</span><button type="button" class="linkish" data-action="stopSpeech">Stop reading</button></div>');
     if (settings.fault !== "off") b.push(`<div class="banner"><span>Testing: ${esc({ once: "first AI reply is broken", always: "every AI reply is broken", "site-down": "site AI unavailable", "site-rate": "hourly AI limit reached", "site-daily": "daily AI limit reached" }[settings.fault] || settings.fault)}.</span><button type="button" class="linkish" data-action="faultOff">Turn off</button></div>`);
     if (Number(settings.clockOffsetDays)) b.push(`<div class="banner"><span>Testing: clock shifted by ${Number(settings.clockOffsetDays)} day(s).</span><button type="button" class="linkish" data-action="clock" data-days="0">Reset</button></div>`);
     $("#banners").innerHTML = b.join("");
@@ -2908,6 +2943,8 @@ void main() {
 
   // ---------- Events ----------
   const actions = {
+    speak: (el) => readAloud(el),
+    stopSpeech: () => { stopSpeech(); announce("Reading stopped."); },
     home: () => { go("home"); },
     newPassage: () => { S.session = null; S.lastStudentView = "home"; go("home"); },
     studentMode: () => {

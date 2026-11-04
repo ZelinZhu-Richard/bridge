@@ -7,7 +7,7 @@ Bridge is an AI reading tutor for intro STEM students, especially ESL, first-gen
 ## How to test (5 lines)
 1. Open the site. It works on a phone or a laptop, with no sign-up.
 2. Choose an offline demo (**linear algebra, statistics, chemistry, or physics**) and click **Try the demo**: miss at least one quick-check question, read the bridge, answer a new immediate recheck on each missed prerequisite, reread with highlights, take the 3-question check, then answer the survey. Answer all quick-check items correctly to skip both bridge and recheck.
-3. Pick **中文** or **Español** before starting to get home-language glosses. **English only** shows none.
+3. Pick **中文** or **Español** before starting to get home-language glosses. **English only** shows none. Speaker buttons read the passage, bridge explanation, or gloss using browser speech synthesis when supported; **Stop reading** stops playback.
 4. Under **Bring your own passage**, click **Fill in a statistics example** (or paste your own text), then **Find what it assumes**. This uses live AI.
 5. Footer → **Evidence log** for averages and JSON/CSV export. Header → **Teacher** for the class view (**Load example class data** if it's empty). Settings (gear) → **Testing tools** to simulate broken AI output or shift the clock so spaced reviews come due.
 
@@ -25,14 +25,15 @@ In order: Claude itself when the page runs as a claude.ai Artifact; an Anthropic
 - **The site's AI is paid by the owner's key.** The shared daily limit is 400 requests; passage counts vary with misses and retries. The hourly limit is per network IP (IPv6 /64), so a school network may share one allowance. See the pilot recommendations in `worker/wrangler.toml`. Set a provider spend limit as well. When AI is unavailable or limited, students see a clear message and a saved-demo fallback.
 - **The AI endpoint can be abused up to those limits.** Origin checks stop other browser sites, but a script can spoof Origin and submit any prompt using an allowed schema, including exhausting the shared daily allowance. Schema allowlisting does not restrict prompt purpose.
 - **Data stays on one device.** Sessions, reviews and the teacher view live in that browser's localStorage. Testers have to export and send their files. The teacher view only sees students who used the same device, so a classroom pilot needs a shared device or a shared database.
-- **AI content isn't reviewed by a person.** Answer keys, explanations and glosses come from the model. Cross-checking `answer_text` against `correct_index` catches index slips, not wrong math. The demo's saved Chinese and Spanish glosses were written by Claude and haven't been checked by a native-speaking teacher.
+- **AI content needs teacher review.** Live answer keys, explanations and glosses come from the model. Cross-checking `answer_text` against `correct_index` catches index slips, not wrong math. Saved demo answer keys have a worked audit in `tests/demo-answer-audit.md`; their AI-authored Chinese and Spanish glosses are not yet reviewed by a native-speaking teacher.
 - **Multiple-choice balance is a partial check.** Prompts require similar option lengths and grammatical forms. A correct option longer than 1.5× the mean distractor length triggers one retry; a still-unbalanced usable item is accepted and logged in `mcq_quality_flags` (JSON and CSV). This does not detect every clue or establish item validity.
 - **Pre/post results are an immediate recheck, not long-term retention.** Only missed quick-check prerequisites receive new parallel items after the bridge. The Evidence log and Teacher view use matched answered posts; unassessed posts stay null and older sessions have no pre/post records. These are small samples, without a control group or a pre-test of the passage mini-check. They do not establish causal learning gains. Live recheck quality still needs teacher review.
 - **The first analysis of a passage is reused.** Every later student on the same device sees the same prerequisites and questions, which keeps class numbers comparable. A weak first analysis repeats until you use **Delete all data**.
-- **Language gaps are under-sampled.** Only the top 3 prerequisites get a quick-check question. Academic-language terms often rank 4th or 5th, so they show up in the teacher view less often than they occur. Students can still tap **Explain this to me** on any marked word.
+- **Language gaps are under-sampled.** Only the top 3 prerequisites get a quick-check question. Academic-language terms outside the top 3 are not assessed, although the three new offline demos include a language item in their top 3. Students can still tap **Explain this to me** on any marked word.
 - **The guardrails are prompt-based.** The no-final-answer rule and the "say when unsure" rule live in the prompts. In the simulated homework test nothing leaked, but no code checks for a leaked answer.
 - **Highlighting depends on the AI quoting the passage exactly.** If it doesn't, the term appears under "Also assumed" instead of being highlighted.
 - **Math is plain Unicode text.** Passages full of LaTeX show the raw markup.
+- **Read aloud depends on the browser and installed voices.** English explanations request an English voice; glosses request Chinese/Spanish voices when available. The browser chooses a fallback if no matching voice is installed. Math pronunciation may be poor. No external TTS service is called by Bridge, and speaker buttons are hidden when speech synthesis is unsupported.
 - **Time spent is wall-clock time** from start to survey, so it includes idle time.
 - **The progress rail shows 5 phases:** Passage, Gaps, Check, Bridge (which includes the immediate recheck and reread), and Practice (which includes the survey).
 - **Example class data is made up.** It is labelled everywhere it appears and left out of session exports by default.
@@ -50,3 +51,16 @@ sh build.sh
 node tests/smoke.mjs
 ```
 The smoke suite starts a local server and uses bundled headless Chromium, blocks live AI calls, and checks every saved demo at 390×844. For a manual preview in Codex's built-in browser: `node tests/smoke.mjs --serve` serves only the built page at `http://127.0.0.1:8765`.
+
+## Roll out the immediate-recheck update
+Redeploy the Worker **before pushing the new main**, because the existing deployment does not yet accept the new recheck schema. The existing Worker URL, site configuration, model and secret stay in place; live AI is already enabled.
+
+```sh
+cd /Users/richardzhu/dev/edu_plat/workspace/bridge/worker
+node scripts/extract-schemas.mjs
+npx wrangler deploy
+cd ..
+git push origin main
+```
+
+The Nov 4 update was verified locally with 19 Worker tests and a browser smoke suite covering all four offline demos. It did not re-run the new code against the real Anthropic API. Retest one pasted passage on the live site after rollout. Feature freeze is **Thursday Nov 5 at 6:00 PM ET** (bug fixes only); no merges after **10:00 PM ET**. MIT Solve submission is due **Friday Nov 6, 2026 at noon ET**.
