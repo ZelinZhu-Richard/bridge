@@ -20,8 +20,9 @@ Bridge is an AI reading tutor for intro STEM students, especially ESL, first-gen
 In order: Claude itself when the page runs as a claude.ai Artifact; an Anthropic API key the visitor enters in Settings; the site's AI server (`worker/`). Without any of these, **Try the demo** still runs the whole loop with saved answers.
 
 ## Known limitations
-- **Live AI was tested against a stand-in, not the real API.** The site, the AI server and the app were run end to end with recorded Claude replies in place of the Anthropic API. Model output quality was checked separately by having Claude answer the app's exact prompts. Run the statistics example once on the live site.
-- **The site's AI is paid by the owner's key.** A shared daily limit (400 requests, about 60 passages) and a per-visitor hourly limit cap the cost. Set a monthly spend limit on that key in the Anthropic Console. When the daily limit is reached, visitors see a clear message and can still use the demo.
+- **Live AI was verified end to end against the real API on Nov 4, 2026 (owner-reported).** Later changes here are checked with a mock API and browser smoke tests; they do not establish live model quality. Per-task token caps are conservatively 8,000 because total usage including effort/thinking was not measured.
+- **The site's AI is paid by the owner's key.** The shared daily limit is 400 requests; passage counts vary with misses and retries. The hourly limit is per network IP (IPv6 /64), so a school network may share one allowance. See the pilot recommendations in `worker/wrangler.toml`. Set a provider spend limit as well. When AI is unavailable or limited, students see a clear message and a saved-demo fallback.
+- **The AI endpoint can be abused up to those limits.** Origin checks stop other browser sites, but a script can spoof Origin and submit any prompt using an allowed schema, including exhausting the shared daily allowance. Schema allowlisting does not restrict prompt purpose.
 - **Data stays on one device.** Sessions, reviews and the teacher view live in that browser's localStorage. Testers have to export and send their files. The teacher view only sees students who used the same device, so a classroom pilot needs a shared device or a shared database.
 - **AI content isn't reviewed by a person.** Answer keys, explanations and glosses come from the model. Cross-checking `answer_text` against `correct_index` catches index slips, not wrong math. The demo's saved Chinese and Spanish glosses were written by Claude and haven't been checked by a native-speaking teacher.
 - **The first analysis of a passage is reused.** Every later student on the same device sees the same prerequisites and questions, which keeps class numbers comparable. A weak first analysis repeats until you use **Delete all data**.
@@ -32,3 +33,6 @@ In order: Claude itself when the page runs as a claude.ai Artifact; an Anthropic
 - **Time spent is wall-clock time** from start to survey, so it includes idle time.
 - **The progress rail shows 5 phases:** Passage, Gaps, Check, Bridge (which includes the reread), and Practice (which includes the survey). Together they cover the 7 loop steps.
 - **Example class data is made up.** It is labelled everywhere it appears and left out of session exports by default.
+
+## After the application deadline
+- TODO: replace client-built prompts with `{task, passage, course, language}`. The Worker must validate task inputs and build each prompt itself, including any required prerequisite context derived through a constrained protocol. This closes the general-purpose prompt endpoint; keep rate and spend limits because quota exhaustion remains possible. Do not do this refactor during demo week.

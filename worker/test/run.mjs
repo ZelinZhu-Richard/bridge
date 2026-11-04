@@ -17,7 +17,7 @@ const FAKE_KEY = "test-not-a-real-key";
 const ALLOWED = "http://localhost:8765";
 const PAGES = "https://zelinzhu-richard.github.io";
 const EVIL = "https://evil.example";
-const MODEL = "claude-opus-5-5";
+const MODEL = "claude-sonnet-5-5";
 const MAX_PROMPT = 12000;
 const MAX_BODY = 64 * 1024;
 const IP_LIMIT = 3;
@@ -271,7 +271,7 @@ test("happy path: mock reply passes through; upstream saw key, version, beta, mo
   const b = u.body;
   eq(Object.keys(b).sort().join(","), "fallbacks,max_tokens,messages,model,output_config", "body keys");
   eq(b.model, MODEL, "model");
-  eq(b.max_tokens, 16000, "max_tokens");
+  eq(b.max_tokens, 8000, "max_tokens");
   eq(JSON.stringify(b.messages), JSON.stringify([{ role: "user", content: prompt }]), "messages");
   eq(b.output_config.effort, "medium", "effort");
   eq(b.output_config.format.type, "json_schema", "format type");
@@ -302,7 +302,7 @@ test("an upstream 400 triggers exactly one retry without fallbacks or beta, keep
   eq(second.headers["x-api-key"], FAKE_KEY, "retry x-api-key");
   eq(second.headers["anthropic-version"], "2026-10-21", "retry anthropic-version");
   eq(second.body.model, MODEL, "retry model");
-  eq(second.body.max_tokens, 16000, "retry max_tokens");
+  eq(second.body.max_tokens, 8000, "retry max_tokens");
   eq(second.body.output_config.effort, "medium", "retry effort");
   eq(second.body.output_config.format.type, "json_schema", "retry format type");
   eq(canonical(second.body.output_config.format.schema), canonical(SCHEMAS.bridge), "retry keeps the schema");

@@ -8,7 +8,9 @@ const MAX_BODY_BYTES = 64 * 1024;
 // Largest real prompt: a 4,000-character passage plus about 3,800 characters of instructions
 // (a 5-item diagnostic) plus about 200 for a retry, so about 8,000. 12,000 leaves headroom.
 const MAX_PROMPT_CHARS = 12000;
-const MAX_TOKENS = 16000;
+// Conservative per-task ceilings: effort/thinking may share this budget.
+// Tighten only after measuring total output usage on the deployed model.
+const MAX_TOKENS = { gaps: 8000, diagnostic: 8000, bridge: 8000, minicheck: 8000, lesson: 8000 };
 const ANTHROPIC_VERSION = "2026-10-21";
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 const DEFAULT_API_URL = "https://api.anthropic.com";
@@ -25,7 +27,7 @@ function canonical(v) {
   }
   return JSON.stringify(v);
 }
-const SCHEMA_BY_CANONICAL = new Map(Object.values(SCHEMAS).map((s) => [canonical(s), s]));
+const SCHEMA_BY_CANONICAL = new Map(Object.entries(SCHEMAS).map(([task, schema]) => [canonical(schema), { task, schema }]));
 
 function knownSchema(schema) {
   if (!schema || typeof schema !== "object" || Array.isArray(schema)) return null;
@@ -167,7 +169,7 @@ async function checkLimits(request, env, cors) {
 }
 
 // ---------- Upstream ----------
-function callAnthropic(env, prompt, schema, withFallbacks) {
+function callAnthropic(env, prompt, { task, schema }, withFallbacks) {
   const headers = {
     "x-api-key": env.ANTHROPIC_API_KEY,
     "anthropic-version": ANTHROPIC_VERSION,
@@ -175,7 +177,7 @@ function callAnthropic(env, prompt, schema, withFallbacks) {
   };
   const body = {
     model: env.MODEL || DEFAULT_MODEL,
-    max_tokens: MAX_TOKENS,
+    max_tokens: MAX_TOKENS[task],
     messages: [{ role: "user", content: prompt }],
     output_config: { effort: "medium", format: { type: "json_schema", schema } },
   };
@@ -277,7 +279,7 @@ export default {
 
     if (url.pathname === "/v1/generate") {
       if (request.method !== "POST") return bridgeError(405, "bridge_method_not_allowed", "Use POST.", cors, { allow: "POST, OPTIONS" });
-      // Requests with no Origin (scripts, curl) are refused too; only the allowed sites may spend the key.
+      // This is a browser boundary only: scripts can spoof an allowed Origin.
       if (!allowed) return bridgeError(403, "bridge_origin_not_allowed", "This site isn't allowed to use Bridge's AI.");
       return generate(request, env, cors);
     }

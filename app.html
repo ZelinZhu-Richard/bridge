@@ -804,6 +804,9 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
     return new BridgeError(code, "The AI service had a problem answering. Try again.");
   }
 
+  // Effort/thinking may consume the output budget: conservative until measured.
+  const TOKEN_CAPS = { gaps: 8000, diagnostic: 8000, bridge: 8000, minicheck: 8000, lesson: 8000 };
+  const tokenCap = (schema) => TOKEN_CAPS[Object.keys(SCHEMA).find((task) => SCHEMA[task] === schema)] || 8000;
   async function callAnthropic(prompt, schema, key, signal) {
     const model = settings.model || DEFAULT_SETTINGS.model;
     const headers = {
@@ -812,7 +815,7 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
       "anthropic-version": "2026-10-21",
       "anthropic-dangerous-direct-browser-access": "true",
     };
-    const body = { model, max_tokens: 16000, messages: [{ role: "user", content: prompt }], output_config: { effort: "medium" } };
+    const body = { model, max_tokens: tokenCap(schema), messages: [{ role: "user", content: prompt }], output_config: { effort: "medium" } };
     if (schema) body.output_config.format = { type: "json_schema", schema };
     if (model !== "claude-haiku-5-5") {
       // Server-side fallback: if a safety classifier declines, the API reroutes to a fallback model.
@@ -836,7 +839,7 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
       // An optional feature (structured output or fallbacks) may not be enabled for this key: retry once with a plain request.
       const plainHeaders = Object.assign({}, headers);
       delete plainHeaders["anthropic-beta"];
-      res = await post({ model, max_tokens: 16000, messages: body.messages }, plainHeaders);
+      res = await post({ model, max_tokens: tokenCap(schema), messages: body.messages }, plainHeaders);
     }
     if (!res.ok) {
       let detail = "";
@@ -886,6 +889,9 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
   }
 
   async function callModel(prompt, schema, signal) {
+    if (settings.fault === "site-down") throw new BridgeError("site_off", "This site's live AI isn't available right now. Try the saved demo below.");
+    if (settings.fault === "site-rate") throw new BridgeError("site_rate", "Your network's hourly AI allowance is used up. Wait a while, or try the saved demo below.");
+    if (settings.fault === "site-daily") throw new BridgeError("site_daily", "Today's shared AI allowance is used up. Try the saved demo below.");
     const sample = await getSample();
     if (sample && !sampleBlocked) {
       // cache: false, so "Try again" asks again instead of replaying a reply that failed validation.
@@ -1690,7 +1696,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   const typeLabel = (t) => (t === "language" ? "language" : "concept");
   const impDots = (n) => `<span class="imp" role="img" aria-label="Importance ${n} of 5">${[1, 2, 3, 4, 5].map((k) => `<i class="${k <= n ? "on" : ""}"></i>`).join("")}</span>`;
   const loadingView = (eyebrow, line) => `<section class="loading"><p class="eyebrow">${esc(eyebrow)}</p><h2 tabindex="-1" data-focus>${esc(line)}</h2><div class="loading-line"><span class="spinner" aria-hidden="true"></span><span>${S.isDemo ? "Loading the saved demo…" : "Asking the AI. This usually takes 10 to 30 seconds."}</span></div><div class="skeleton" aria-hidden="true"><i></i><i></i><i></i></div></section>`;
-  const errorBox = (msg, retryAction, extra = "") => `<div class="callout bad" role="alert"><strong>That didn't work.</strong><p>${esc(msg)}</p><div class="actions">${retryAction ? `<button type="button" class="btn primary small" data-action="${retryAction}" data-autofocus>Try again</button>` : ""}${extra}</div></div>`;
+  const errorBox = (msg, retryAction, extra = "") => `<div class="callout bad" role="alert"><strong>That didn't work.</strong><p>${esc(msg)}</p><div class="actions">${retryAction ? `<button type="button" class="btn primary small" data-action="${retryAction}" data-autofocus>Try again</button>` : ""}${extra}<button type="button" class="btn secondary small" data-action="demoFallback">Try saved demo instead</button></div></div>`;
   const homeworkNote = () => (homework() ? `<div class="callout warn"><strong>This looks like a homework problem.</strong><p>Bridge explains the background ideas and gives hints. It won't give you the final answer, so the thinking stays yours.</p></div>` : "");
   const glossFor = (data) => (lang().id !== "en" && S.showGloss && data && data.gloss ? `<p class="gloss" lang="${lang().tag}"><span class="gloss-label">${esc(lang().label)}</span><span>${esc(data.gloss)}</span></p>` : "");
   const glossToggle = () => (lang().id === "en" ? "" : `<label class="toggle"><input type="checkbox" id="glossToggle" data-change="gloss" ${S.showGloss ? "checked" : ""}> Show ${esc(lang().label)} glosses</label>`);
@@ -2200,11 +2206,14 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       </section>
       <section class="panel" aria-labelledby="testTitle">
         <h2 id="testTitle" style="font-size:1.3rem">Testing tools</h2>
-        <div class="field"><label class="field-label" for="faultSelect">Simulate malformed AI output</label>
+        <div class="field"><label class="field-label" for="faultSelect">Simulate AI problems</label>
           <select id="faultSelect" data-change="fault">
             <option value="off" ${settings.fault === "off" ? "selected" : ""}>Off (normal)</option>
             <option value="once" ${settings.fault === "once" ? "selected" : ""}>First reply is broken (Bridge should retry and recover)</option>
             <option value="always" ${settings.fault === "always" ? "selected" : ""}>Every reply is broken (Bridge should show a friendly error)</option>
+            <option value="site-down" ${settings.fault === "site-down" ? "selected" : ""}>Site AI is unavailable (saved demo still works)</option>
+            <option value="site-rate" ${settings.fault === "site-rate" ? "selected" : ""}>Network hourly limit reached (saved demo still works)</option>
+            <option value="site-daily" ${settings.fault === "site-daily" ? "selected" : ""}>Shared daily limit reached (saved demo still works)</option>
           </select></div>
         <div class="field"><span class="field-label">Shift the clock to test spaced review</span>
           <p class="small muted">Current shift: ${Number(settings.clockOffsetDays) || 0} day(s). Reviews come due 1, 3 and 7 days after a session.</p>
@@ -2384,7 +2393,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   }
   function renderBanners() {
     const b = [];
-    if (settings.fault !== "off") b.push(`<div class="banner"><span>Testing: simulating malformed AI output (${settings.fault === "once" ? "first reply" : "every reply"}).</span><button type="button" class="linkish" data-action="faultOff">Turn off</button></div>`);
+    if (settings.fault !== "off") b.push(`<div class="banner"><span>Testing: ${esc({ once: "first AI reply is broken", always: "every AI reply is broken", "site-down": "site AI unavailable", "site-rate": "hourly AI limit reached", "site-daily": "daily AI limit reached" }[settings.fault] || settings.fault)}.</span><button type="button" class="linkish" data-action="faultOff">Turn off</button></div>`);
     if (Number(settings.clockOffsetDays)) b.push(`<div class="banner"><span>Testing: clock shifted by ${Number(settings.clockOffsetDays)} day(s).</span><button type="button" class="linkish" data-action="clock" data-days="0">Reset</button></div>`);
     $("#banners").innerHTML = b.join("");
   }
@@ -2624,6 +2633,7 @@ void main() {
     settings: () => { S.settingsMsg = ""; go("settings"); },
     theme: () => { theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; applyTheme(theme, true); toast(`Theme: ${theme === "system" ? "match system" : theme}`); },
     demo: () => { S.courseId = "linear-algebra"; S.session = null; startSession({ passage: DEMO_PASSAGE, demo: true }); },
+    demoFallback: () => { settings.fault = "off"; saveSettings(); actions.demo(); },
     focusPassage: () => { const ta = $("#passageInput"); if (ta) { ta.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" }); tryFocus(ta); } },
     fillStats: () => { S.draft = STATS_EXAMPLE; S.courseId = "statistics"; S.homeError = null; render(); const ta = $("#passageInput"); if (ta) ta.focus(); },
     retryGaps: () => loadGaps(),
