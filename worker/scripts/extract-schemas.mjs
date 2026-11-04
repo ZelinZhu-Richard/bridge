@@ -9,7 +9,7 @@ import vm from "node:vm";
 const here = dirname(fileURLToPath(import.meta.url));
 const appPath = join(here, "..", "..", "app.html");
 const outPath = join(here, "..", "src", "schemas.js");
-const NAMES = ["gaps", "diagnostic", "bridge", "minicheck", "lesson"];
+const NAMES = ["gaps", "diagnostic", "recheck", "bridge", "minicheck", "lesson"];
 const MARKER = "// JSON schemas for the API's structured output.";
 
 function die(msg) {

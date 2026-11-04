@@ -6,11 +6,11 @@ import { SCHEMAS } from "./schemas.js";
 
 const MAX_BODY_BYTES = 64 * 1024;
 // Largest real prompt: a 4,000-character passage plus about 3,800 characters of instructions
-// (a 5-item diagnostic) plus about 200 for a retry, so about 8,000. 12,000 leaves headroom.
+// (a recheck includes the previous items) plus retry instructions. 12,000 leaves headroom.
 const MAX_PROMPT_CHARS = 12000;
 // Conservative per-task ceilings: effort/thinking may share this budget.
 // Tighten only after measuring total output usage on the deployed model.
-const MAX_TOKENS = { gaps: 8000, diagnostic: 8000, bridge: 8000, minicheck: 8000, lesson: 8000 };
+const MAX_TOKENS = { gaps: 8000, diagnostic: 8000, recheck: 8000, bridge: 8000, minicheck: 8000, lesson: 8000 };
 const ANTHROPIC_VERSION = "2026-10-21";
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 const DEFAULT_API_URL = "https://api.anthropic.com";
@@ -18,7 +18,7 @@ const DEFAULT_MODEL = "claude-sonnet-5-5";
 const HOUR_MS = 3600000;
 const DAY_MS = 86400000;
 
-// ---------- Schemas: only the app's own five are accepted ----------
+// ---------- Schemas: only the app's own six are accepted ----------
 // Canonical JSON: object keys sorted at every level, arrays kept in order.
 function canonical(v) {
   if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;

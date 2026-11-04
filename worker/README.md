@@ -33,7 +33,7 @@ Change a value, then run `npm run deploy` again. Rate limits are counted by one 
 ## API
 
 - `GET /health` returns `{"ok":true,"model":"...","configured":true|false}`.
-- `POST /v1/generate` with JSON `{"prompt":"...","schema":{...}}`. `schema` must be one of the app's five schemas. The reply is the Anthropic Messages API response, passed through unchanged.
+- `POST /v1/generate` with JSON `{"prompt":"...","schema":{...}}`. `schema` must be one of the app's six schemas (including immediate recheck). The reply is the Anthropic Messages API response, passed through unchanged. Each task has a conservative 8,000-token ceiling, including any effort/thinking usage; these caps have not been calibrated against live usage.
 - Limits: body up to 64 KB, prompt up to 12,000 characters.
 - Errors from the Worker look like `{"type":"error","error":{"type":"bridge_…","message":"…"}}`. Examples: `bridge_unknown_schema` (400), `bridge_prompt_too_large` (413), `bridge_rate_limit` and `bridge_daily_limit` (429, with `Retry-After`), `bridge_not_configured` (503), `bridge_upstream_auth` (502, the key was rejected).
 

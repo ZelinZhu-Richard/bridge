@@ -100,6 +100,60 @@ export const SCHEMAS = {
       }
     }
   },
+  "recheck": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind",
+      "items"
+    ],
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "immediate_recheck"
+        ]
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "term",
+            "question",
+            "options",
+            "correct_index",
+            "answer_text",
+            "explanation"
+          ],
+          "properties": {
+            "term": {
+              "type": "string"
+            },
+            "question": {
+              "type": "string"
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "correct_index": {
+              "type": "integer"
+            },
+            "answer_text": {
+              "type": "string"
+            },
+            "explanation": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
   "bridge": {
     "type": "object",
     "additionalProperties": false,

@@ -21,7 +21,7 @@ const MODEL = "claude-sonnet-5-5";
 const MAX_PROMPT = 12000;
 const MAX_BODY = 64 * 1024;
 const IP_LIMIT = 3;
-const DAILY_LIMIT = 20;
+const DAILY_LIMIT = 30;
 
 // ---------- tiny harness ----------
 const results = [];
@@ -286,6 +286,18 @@ test("schema match ignores object key order", async () => {
   const ups = upstreamFor(tag);
   eq(ups.length, 1, "upstream calls");
   eq(canonical(ups[0].body.output_config.format.schema), canonical(SCHEMAS.diagnostic), "schema sent upstream");
+});
+
+test("every app schema, including the immediate recheck, is accepted with its token cap", async () => {
+  eq(Object.keys(SCHEMAS).sort().join(","), "bridge,diagnostic,gaps,lesson,minicheck,recheck", "registered tasks");
+  for (const [task, schema] of Object.entries(SCHEMAS)) {
+    const tag = newTag();
+    eq((await generate({ prompt: `${task} ${tag}`, schema })).status, 200, `${task} accepted`);
+    const upstream = upstreamFor(tag);
+    eq(upstream.length, 1, `${task} calls`);
+    eq(upstream[0].body.max_tokens, 8000, `${task} cap`);
+    eq(canonical(upstream[0].body.output_config.format.schema), canonical(schema), `${task} schema`);
+  }
 });
 
 test("an upstream 400 triggers exactly one retry without fallbacks or beta, keeping the schema", async () => {
