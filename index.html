@@ -540,6 +540,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .solve-intro .actions { margin-top: 1.25rem; }
 .solve-banner { justify-content: space-between; gap: .75rem; background: var(--surface); color: var(--ink); }
 .solve-banner span { font-weight: 600; }
+.solve-result { grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding-block: .25rem; }
+.solve-result .miss-stat { white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition: none !important; }
 }
@@ -2427,8 +2429,8 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       const gaps = classSummary(sample).missedTerms;
       return `<h2 tabindex="-1" data-focus>What would you reteach?</h2>
         <div class="callout info"><strong>Sample class · 8 fictional attempts</strong><p>These numbers illustrate the teacher view.</p></div>
-        <ol class="miss-list">${gaps.map((gap) => `<li class="miss-row">
-          <span class="miss-head"><strong>${esc(gap.term)}</strong> <span class="tag ${gap.type}">${gap.type}</span></span>
+        <ol class="miss-list" aria-label="Missed prerequisites">${gaps.map((gap) => `<li class="miss-row solve-result">
+          <span class="miss-head"><b>${esc(gap.term)}</b> <span class="tag ${gap.type}">${gap.type}</span></span>
           <span class="miss-stat">${gap.missed} of ${gap.checked} missed</span>
         </li>`).join("")}</ol>
         <section class="section panel">
