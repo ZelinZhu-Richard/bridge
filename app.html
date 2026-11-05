@@ -1105,7 +1105,8 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
     };
     for (let attempt = 0; attempt < 2; attempt++) {
       if (signal && signal.aborted) throw new BridgeError("cancelled", "Stopped.");
-      const p = attempt === 0 ? prompt : `${prompt}\n\nIMPORTANT: your previous reply could not be used because ${reason}. Reply again with ONLY the JSON object, in exactly the shape shown above.`;
+      const recheckHint = task === "makeRecheck" ? "Use a new context with a different question stem and, if it involves numbers, different numbers. Do not reuse the quick-check question or its correct answer text. " : "";
+      const p = attempt === 0 ? prompt : `${prompt}\n\nIMPORTANT: your previous reply could not be used because ${reason}. ${recheckHint}Reply again with ONLY the JSON object, in exactly the shape shown above.`;
       let text, truncated = false;
       if (canned !== undefined && !retryFresh) text = JSON.stringify(canned);
       else {

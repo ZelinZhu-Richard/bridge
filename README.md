@@ -21,7 +21,7 @@ Bridge is an AI reading tutor for intro STEM students, especially ESL, first-gen
 In order: Claude itself when the page runs as a claude.ai Artifact; an Anthropic API key the visitor enters in Settings; the site's AI server (`worker/`). Without any of these, **Try the demo** still runs the whole loop with saved answers.
 
 ## Known limitations
-- **Live AI has a known recheck-generation failure.** A Nov 4 live statistics run reached the bridge, but both recheck replies failed the repeat validator. Failed rechecks now continue automatically to the reread, with `post_status: "recheck_unavailable"` and null post results per missed prerequisite. They are excluded from pre/post statistics and counted separately in Evidence and Teacher views. The validator's root cause is still under investigation. Per-task caps remain conservatively 8,000 because total usage including effort/thinking was not measured.
+- **Live AI can generate unusable rechecks.** A Nov 4 live statistics run failed at the repeat validator, but a controlled five-generation direct-API baseline later accepted 5/5; that baseline did not establish false positives. The original validator is retained. Its rejection reason is included in the retry prompt, with explicit guidance to use a new context, stem and numbers. Failed rechecks continue automatically to the reread with `post_status: "recheck_unavailable"` and null posts, excluded from pre/post statistics and counted separately in Evidence and Teacher views. The owner verified that fallback on a phone. Per-task caps remain conservatively 8,000.
 - **The site's AI is paid by the owner's key.** The shared daily limit is 400 requests; passage counts vary with misses and retries. The hourly limit is per network IP (IPv6 /64), so a school network may share one allowance. See the pilot recommendations in `worker/wrangler.toml`. Set a provider spend limit as well. When AI is unavailable or limited, students see a clear message and a saved-demo fallback.
 - **The AI endpoint can be abused up to those limits.** Origin checks stop other browser sites, but a script can spoof Origin and submit any prompt using an allowed schema, including exhausting the shared daily allowance. Schema allowlisting does not restrict prompt purpose.
 - **Data stays on one device.** Sessions, reviews and the teacher view live in that browser's localStorage. Testers have to export and send their files. The teacher view only sees students who used the same device, so a classroom pilot needs a shared device or a shared database.
@@ -45,6 +45,8 @@ In order: Claude itself when the page runs as a claude.ai Artifact; an Anthropic
 ```sh
 npm ci
 npx playwright install chromium
+node tests/recheck-harness.mjs --dry-run
+node tests/recheck-regression.mjs
 node worker/scripts/extract-schemas.mjs
 node worker/test/run.mjs
 sh build.sh
@@ -52,8 +54,18 @@ node tests/smoke.mjs
 ```
 The smoke suite starts a local server and uses bundled headless Chromium, blocks live AI calls, and checks every saved demo at 390×844. For a manual preview in Codex's built-in browser: `node tests/smoke.mjs --serve` serves only the built page at `http://127.0.0.1:8765`.
 
+## Direct API recheck harness (developer QA only)
+The harness evaluates the app's prompt, schema, parser, original validator and direct fetch transport verbatim from `app.html`. Its controlled statistics fixture includes two concept prerequisites and one academic-language prerequisite; it does not recreate the original browser session's AI-selected prerequisites.
+
+```sh
+node tests/recheck-harness.mjs --label baseline
+node tests/recheck-harness.mjs --label pushed --runs 10 --expect-valid
+```
+
+The default is five independent generations; `--runs` changes the count. API/transport failures stop immediately; `--expect-valid` also stops on the first validator rejection. Credentials come from `ANTHROPIC_API_KEY` if set, otherwise the trimmed contents of `~/.config/bridge/anthropic_key`. The credential is held only in memory and sent in the API-key header. Raw replies and results stay in gitignored `.debug/`, with that header omitted and credential values redacted; nothing is added to student storage or exports. The harness measures single-generation acceptance, while the smoke suite separately tests retry feedback and recovery.
+
 ## Roll out the immediate-recheck update
-Redeploy the Worker **before pushing the new main**, because the existing deployment does not yet accept the new recheck schema. The existing Worker URL, site configuration, model and secret stay in place; live AI is already enabled.
+The Worker already accepts the recheck schema (deployed Nov 4). Redeploy it **before pushing main only when `worker/` changed**. The retry-feedback-only change needs no Worker deployment. The existing Worker URL, site configuration, model and secret stay in place; live AI is already enabled.
 
 ```sh
 cd /Users/richardzhu/dev/edu_plat/workspace/bridge/worker

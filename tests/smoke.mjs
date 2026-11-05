@@ -202,11 +202,13 @@ try {
       await finishLoop(page, { language, missCount });
       await action(page, "teacherMode");
       check((await page.locator("#main").innerText()).includes("Pre → post"), "teacher shows pre/post");
+      if (missCount) check((await page.locator("#main").innerText()).includes("0/1 → 1/1 correct"), "Teacher shows the matched miss → correct result");
       if (missCount) check((await page.locator("#main").innerText()).includes("Saved example (written for this demo passage)"), `${demo.id} has a saved teacher lesson`);
       await action(page, "addExamples");
       check((await page.locator("#main").innerText()).includes("made-up students"), "example class clearly labeled");
       await action(page, "admin");
       check((await page.locator("#main").innerText()).includes("Missed prerequisites answered correctly right after the bridge"), "evidence metric present");
+      check((await page.locator("#main").innerText()).includes(`right after the bridge: ${missCount ? 1 : 0} of ${missCount} (`), "Evidence uses the matched post numerator and denominator");
       const json = JSON.parse(await exported(page, "exportJSON"));
       check(json.sessions.length === 1 && !json.sessions[0].example_data, "JSON excludes example data by default");
       check(Array.isArray(json.sessions[0].prerequisite_pre_post) && Array.isArray(json.sessions[0].recheck), "JSON includes new fields");
@@ -257,12 +259,17 @@ try {
   // only a still-unbalanced item. This also exercises the new recheck schema path.
   for (const fixedOnRetry of [true, false]) {
     let diagnosticCalls = 0;
+    const recheckPrompts = [];
     const fixture = structuredClone(demos[0].data);
     const page = await newPage({ reply: async (route) => {
-      const { schema } = route.request().postDataJSON();
+      const { schema, prompt } = route.request().postDataJSON();
       let output;
       if (schema.properties.prerequisites) output = fixture.gaps;
-      else if (schema.properties.kind) output = { kind: "immediate_recheck", items: [fixture.recheck.items[0]] };
+      else if (schema.properties.kind) {
+        recheckPrompts.push(prompt);
+        const repeat = fixedOnRetry && recheckPrompts.length === 1;
+        output = { kind: "immediate_recheck", items: [repeat ? fixture.diagnostic.items[0] : fixture.recheck.items[0]] };
+      }
       else if (schema.properties.items) {
         diagnosticCalls++;
         output = structuredClone(fixture.diagnostic);
@@ -282,6 +289,13 @@ try {
     check(diagnosticCalls === 2, "length clue retries exactly once");
     check((await session(page)).mcq_quality_flags.length === (fixedOnRetry ? 0 : 1), "unresolved length clue flagged honestly");
     await finishLoop(page, { language: "en", missCount: 1 });
+    if (fixedOnRetry) {
+      const reason = await page.evaluate((item) => window.BridgeTest.validators.validateRecheck({ kind: "immediate_recheck", items: [item] }, [item]).reason, fixture.diagnostic.items[0]);
+      check(recheckPrompts.length === 2, "rejected recheck retries once and recovers");
+      check(recheckPrompts[1].startsWith(recheckPrompts[0]), "recheck retry preserves the full original prompt");
+      check(recheckPrompts[1].includes(`because ${reason}.`), "recheck retry contains the actual validator rejection reason");
+      check(recheckPrompts[1].includes("new context with a different question stem") && recheckPrompts[1].includes("different numbers"), "recheck retry gives actionable context, stem and number guidance");
+    }
     await page.context().close();
     console.log(`PASS mocked live AI balance retry: ${fixedOnRetry ? "repaired" : "accepted and flagged"}, recheck and loop`);
   }
