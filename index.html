@@ -532,6 +532,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 }
 .vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .counter.over { color: var(--bad); font-weight: 600; }
+.is-guided .mode-switch, .is-guided [data-action="settings"], .is-guided .footer { display: none; }
+.solve-intro { padding-block: clamp(1.5rem, 4vw, 2.75rem); }
+.solve-intro h1 { max-width: 15ch; text-wrap: balance; }
+.solve-excerpt { margin: 1.75rem 0; }
+.solve-excerpt mark { color: var(--ink); background: var(--hl); }
+.solve-intro .actions { margin-top: 1.25rem; }
+.solve-banner { justify-content: space-between; gap: .75rem; background: var(--surface); color: var(--ink); }
+.solve-banner span { font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition: none !important; }
 }
@@ -668,7 +676,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   const courseById = (id) => COURSES.find((c) => c.id === id) || COURSES[COURSES.length - 1];
   const langById = (id) => LANGS.find((l) => l.id === id) || LANGS[0];
   const PHASES = ["Passage", "Gaps", "Check", "Bridge", "Practice"];
-  const PHASE_OF = { home: 0, gaps: 1, check: 2, bridge: 3, recheck: 3, reread: 3, practice: 4, survey: 4, done: 4 };
+  const PHASE_OF = { home: 0, solveIntro: 0, gaps: 1, check: 2, bridge: 3, recheck: 3, reread: 3, practice: 4, survey: 4, done: 4 };
   const REVIEW_DAYS = [1, 3, 7];
   const MAX_PASSAGE = 4000;
   const ICON = {
@@ -808,7 +816,7 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
     recheck: { kind: "immediate_recheck", items: [
       savedItem("i.i.d.", "Which plan best supports two independent observations from the same distribution?", ["Record one die roll twice", "Record two separate fair die rolls", "Copy one roll into two columns", "Count the same roll in two groups"], 1, "Two separate rolls of the same fair die have the same distribution and neither roll determines the other."),
       savedItem("standard deviation", "Group X is 7, 8, 9. Group Y is 4, 8, 12. Which group has more spread around its mean?", ["Group X has greater spread", "Both groups have equal spread", "Group Y has greater spread", "Both groups have zero spread"], 2, "Both means are 8; deviations in Y are −4, 0, 4, larger in size than −1, 0, 1 in X."),
-      savedItem("respectively", "'p and q denote mass and speed, respectively.' What does p denote?", ["Mass", "Time", "Area", "Heat"], 0, "The first symbol p pairs with the first quantity, mass."),
+      savedItem("respectively", "'p and q denote mass and speed, respectively.' What does p denote?", ["Mass", "Speed", "Area", "Heat"], 0, "The first symbol p pairs with the first quantity, mass."),
     ] },
     bridges: {
       "i.i.d.": savedBridge("Think of making a fresh fair die roll each time, using the same die.", "Independent means one outcome gives no information about another. Identically distributed means each observation follows the same probability distribution.", "The passage assumes X₁, …, Xₙ are i.i.d. Repeating a measurement under the same conditions may support that assumption; copying one value n times does not.", "独立同分布（i.i.d.）：各次观察互不影响，并且服从相同的概率分布。", "independientes e idénticamente distribuidas (i.i.d.): las observaciones son independientes y siguen la misma distribución."),
@@ -904,6 +912,10 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
   const selectedDemo = () => DEMOS.find((d) => d.id === (S.session ? S.session.demo_id : S.demoId)) || DEMOS[0];
   const demoData = () => selectedDemo().data;
   const demoBridge = (term) => demoData().bridges[term] || null;
+  const SOLVE_PASSAGE_QUESTION = savedMini("easy",
+    "In the original statistics passage, what does s denote?",
+    ["The sample mean", "The population mean", "The sample standard deviation", "The population standard deviation"],
+    2, "The text lists the sample mean first and the sample standard deviation second. So X̄ is the sample mean and s is the sample standard deviation.");
 
   // Malformed replies used by the "simulate malformed AI output" testing switch.
   const FAULTS = [
@@ -1103,6 +1115,12 @@ Geometrically, proj_u(v) is the component of v that lies along u, and the residu
   // `session` is the session that asked (null for teacher calls), so counters never land on another session.
   // `report.strict` tells the caller whether the result passed the strict check (only those are worth saving).
   async function generateJSON(task, { prompt, validate, schema, canned, session = null, signal, report = {} }) {
+    if (session?.source === "solve-demo" || session?.source === "assignment") {
+      if (signal?.aborted) throw new BridgeError("cancelled", "Stopped.");
+      const result = validate(clone(canned ?? null), false);
+      if (!result.ok) throw new Error(result.reason);
+      return result.value;
+    }
     let reason = "";
     let fallback = null;
     let retryFresh = false;
@@ -1465,7 +1483,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   // False once "Delete all data" removed the session or a newer session replaced it in this tab and storage.
   const sessionAlive = (s) => !!s && (s === S.session || loadSessions().some((x) => x.id === s.id));
   function persistSession(s) {
-    if (!s) return;
+    if (!s || s.source === "solve-demo" || s.source === "assignment") return;
     s.updated_at = iso(now());
     const all = loadSessions();
     const i = all.findIndex((x) => x.id === s.id);
@@ -1499,7 +1517,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       updated_at: iso(now()),
       completed_at: null,
       completed: false,
-      source: demo ? "demo" : "pasted",
+      source: S.solve ? "solve-demo" : S.activity ? "assignment" : demo ? "demo" : "pasted",
       demo_id: demo ? S.demoId : null,
       ai_mode: demo ? "saved-demo" : aiModeLabel(),
       course: courseId,
@@ -1547,6 +1565,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   // Reviews come due early on the promised day (4 a.m. local), so "in 1 day" means tomorrow, not 24 hours later.
   const dayStart = (ms) => { const d = new Date(ms); d.setHours(4, 0, 0, 0); return d.getTime(); };
   function scheduleReviews(items) {
+    if (S.solve || S.activity) return null;
     const created = now();
     const due_dates = REVIEW_DAYS.map((d) => dayStart(created + d * DAY_MS));
     const list = loadReviews();
@@ -1581,6 +1600,9 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   // ---------- App state ----------
   const S = {
     view: "home",
+    solve: false,
+    solveWorked: false,
+    activity: null,
     lastStudentView: "home",
     draft: "",
     courseId: "linear-algebra",
@@ -1655,7 +1677,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     S.session = newSession({ passage, courseId: S.courseId, langId: S.langId, demo });
     saveSession();
     go("gaps");
-    loadGaps();
+    return loadGaps();
   }
 
   const passageKey = () => `${S.session ? S.session.passage_id : ""}|${course().id}`;
@@ -1701,8 +1723,9 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   function startDiagnostic() {
     S.diag = { status: "loading", items: [], answers: [], index: 0 };
     go("check");
-    loadDiagnostic();
+    const pending = loadDiagnostic();
     loadMiniCheck(); // prefetch: it depends only on the passage
+    return pending;
   }
 
   async function loadDiagnostic() {
@@ -1870,9 +1893,9 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       const report = {};
       const result = await generateJSON("makeMiniCheck", Object.assign({ report,
         prompt: promptMiniCheck({ passage: S.passage, courseLabel: course().label, homework: homework() }),
-        validate: (v, lenient) => validateMiniCheck(v, lenient),
+        validate: (v, lenient) => validateMiniCheck(v, lenient || S.solve),
         schema: SCHEMA.minicheck,
-        canned: S.isDemo ? clone(demoData().minicheck) : saved ? clone(saved) : undefined,
+        canned: S.solve ? { questions: [SOLVE_PASSAGE_QUESTION] } : S.isDemo ? clone(demoData().minicheck) : saved ? clone(saved) : undefined,
       }, runOpts()));
       if (run !== S.run) return;
       if (!S.isDemo && !saved && report.strict) rememberPassage(passageKey(), "mini", { questions: result.questions.map((q) => Object.assign({ answer_text: q.options[q.correct_index] }, q)) });
@@ -1993,6 +2016,20 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   const glossFor = (data) => (lang().id !== "en" && S.showGloss && data && data.gloss ? `<p class="gloss" lang="${lang().tag}"><span class="gloss-label">${esc(lang().label)}</span><span>${esc(data.gloss)}</span></p>${speakButton(data.gloss, lang().id === "zh" ? "zh-CN" : "es-ES", "Read gloss aloud")}` : "");
   const glossToggle = () => (lang().id === "en" ? "" : `<label class="toggle"><input type="checkbox" id="glossToggle" data-change="gloss" ${S.showGloss ? "checked" : ""}> Show ${esc(lang().label)} glosses</label>${S.isDemo ? '<p class="small muted">Saved glosses: not yet reviewed by a native-speaking teacher.</p>' : ""}`);
 
+  VIEWS.solveIntro = () => `
+    <section class="solve-intro" aria-labelledby="solve-title">
+      <h1 id="solve-title" tabindex="-1" data-focus>One word can stop a whole reading.</h1>
+      <blockquote class="passage solve-excerpt">Let X̄ and s denote the sample mean and the sample standard deviation, <mark>respectively</mark>.</blockquote>
+      <p class="lede">What if a student understands standard deviation but gets stuck on <em>respectively</em>?</p>
+      <p>Try a reading check, then see how the instructor can use the results to plan what to reteach.</p>
+      <fieldset class="seg"><legend class="small">Help with key terms</legend>
+        <input type="radio" name="solveLang" id="solveLang-en" value="en" data-change="lang" ${S.langId === "en" ? "checked" : ""}><label for="solveLang-en">English only</label>
+        <input type="radio" name="solveLang" id="solveLang-es" value="es" data-change="lang" ${S.langId === "es" ? "checked" : ""}><label for="solveLang-es" lang="es">Español</label>
+      </fieldset>
+      <div class="actions"><button type="button" class="btn primary" data-action="solveStart">Start the reading check</button></div>
+      <p class="small muted">About two minutes. Your demo answers stay in this tab.</p>
+    </section>`;
+
   VIEWS.home = () => {
     const due = dueReviews();
     const upcoming = due.length ? null : nextUpcoming();
@@ -2016,7 +2053,8 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
             <fieldset class="seg hero-lang"><legend class="small">Glosses in your home language</legend>${heroLang}</fieldset>
             <div class="field"><label class="field-label" for="demoSelect">Choose an offline demo</label><select id="demoSelect" data-change="demo">${DEMOS.map((d) => `<option value="${d.id}" ${d.id === S.demoId ? "selected" : ""}>${esc(d.title)}</option>`).join("")}</select></div>
             <div class="actions">
-              <button type="button" class="btn primary" data-action="demo">Try the demo</button>
+              <a class="btn primary" href="#solve-demo">Try the statistics demo</a>
+              <button type="button" class="btn secondary" data-action="demo">Try the demo</button>
               <button type="button" class="btn secondary" data-action="focusPassage">Use my own passage</button>
             </div>
             <p class="hero-note">No sign-up. All four demos run with saved content, even without live AI.</p>
@@ -2215,7 +2253,8 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
       <div class="passage">${html}</div>
       <div class="term-panel" id="termPanel" aria-live="polite">${panel}</div>
       ${notInText.length ? `<div class="stack"><p class="small muted">Also assumed, but not written out in the text:</p><div class="chips">${notInText.map((q) => `<button type="button" class="chip ${q.type}" data-action="openTerm" data-pi="${q.pi}"><span class="chip-term">${esc(q.term)}</span></button>`).join("")}</div></div>` : ""}
-      <div class="actions"><button type="button" class="btn primary" data-action="toPractice">Start the ${S.mini && S.mini.status === "ready" ? S.mini.questions.length : 3}-question check</button></div>`;
+      <div class="actions"><button type="button" class="btn primary" data-action="toPractice">${S.solve ? "Check the original sentence" : `Start the ${S.mini && S.mini.status === "ready" ? S.mini.questions.length : 3}-question check`}</button>
+      ${S.solve && S.bridgeSkipped ? '<button type="button" class="btn secondary" data-action="solveWorked">See a worked example of a missed item</button>' : ""}</div>`;
   };
 
   VIEWS.practice = () => {
@@ -2224,6 +2263,9 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
     if (m.status === "error") return `<p class="eyebrow">Practice</p><h2 tabindex="-1" data-focus>Writing your 3-question check</h2>${errorBox(m.error, "retryMini", `<button type="button" class="btn ghost small" data-action="toSurvey">Skip to feedback</button>`)}`;
     if (m.finished) {
       const score = m.answers.filter((a) => a && a.correct).length;
+      if (S.solve) return `<h2 tabindex="-1" data-focus>From a reading gap to a teaching decision</h2>
+        <p>In the original sentence, <strong>s denotes the sample standard deviation</strong>. An instructor can use the quick-check results to see which part of the reading to revisit.</p>
+        <div class="actions"><button type="button" class="btn primary" data-action="teacherMode">See what the instructor sees</button></div>`;
       return `
         <p class="eyebrow">Practice · results</p>
         <h2 tabindex="-1" data-focus>Your ${m.questions.length}-question check</h2>
@@ -2375,6 +2417,27 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   }
 
   VIEWS.teacher = () => {
+    if (S.solve) {
+      const checked = STATS_DEMO.gaps.prerequisites.slice(0, 3);
+      const sample = Array.from({ length: 8 }, (_, i) => ({
+        id: `solve-${i}`, passage_id: "solve-statistics", passage_label: "Sample means", course: "statistics",
+        prerequisites: checked,
+        diagnostics: checked.map((item, j) => ({ ...item, correct: i >= [1, 2, 5][j] })),
+      }));
+      const gaps = classSummary(sample).missedTerms;
+      return `<h2 tabindex="-1" data-focus>What would you reteach?</h2>
+        <div class="callout info"><strong>Sample class · 8 fictional attempts</strong><p>These numbers illustrate the teacher view.</p></div>
+        <ol class="miss-list">${gaps.map((gap) => `<li class="miss-row">
+          <span class="miss-head"><strong>${esc(gap.term)}</strong> <span class="tag ${gap.type}">${gap.type}</span></span>
+          <span class="miss-stat">${gap.missed} of ${gap.checked} missed</span>
+        </li>`).join("")}</ol>
+        <section class="section panel">
+          <h3>Five-minute lesson on “respectively”</h3>
+          <p>Write the original sentence on the board. Draw one arrow from X̄ to “sample mean” and another from s to “sample standard deviation.” Then ask students to paraphrase the sentence without using “respectively.”</p>
+          <p class="small muted">Bridge suggests the lesson. The instructor decides how to use it.</p>
+        </section>
+        <div class="actions"><button type="button" class="btn secondary" data-action="solveReset">Restart the demo</button></div>`;
+    }
     const all = loadSessions();
     const examples = all.filter((s) => s.example_data).length;
     const sessions = all.filter((s) => (s.diagnostics || []).length); // students who reached the quick check
@@ -2727,8 +2790,11 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   function renderBanners() {
     const b = [];
     if (readingAloud && canSpeak()) b.push('<div class="banner"><span>Reading aloud</span><button type="button" class="linkish" data-action="stopSpeech">Stop reading</button></div>');
-    if (settings.fault !== "off") b.push(`<div class="banner"><span>Testing: ${esc({ once: "first AI reply is broken", always: "every AI reply is broken", "site-down": "site AI unavailable", "site-rate": "hourly AI limit reached", "site-daily": "daily AI limit reached" }[settings.fault] || settings.fault)}.</span><button type="button" class="linkish" data-action="faultOff">Turn off</button></div>`);
-    if (Number(settings.clockOffsetDays)) b.push(`<div class="banner"><span>Testing: clock shifted by ${Number(settings.clockOffsetDays)} day(s).</span><button type="button" class="linkish" data-action="clock" data-days="0">Reset</button></div>`);
+    if (S.solve) b.push(`<div class="banner solve-banner"><span>${S.solveWorked ? "Worked example · missed language item" : "MIT Solve · statistics demo"}</span><a href="#">Exit demo</a></div>`);
+    else if (!S.activity) {
+      if (settings.fault !== "off") b.push(`<div class="banner"><span>Testing: ${esc({ once: "first AI reply is broken", always: "every AI reply is broken", "site-down": "site AI unavailable", "site-rate": "hourly AI limit reached", "site-daily": "daily AI limit reached" }[settings.fault] || settings.fault)}.</span><button type="button" class="linkish" data-action="faultOff">Turn off</button></div>`);
+      if (Number(settings.clockOffsetDays)) b.push(`<div class="banner"><span>Testing: clock shifted by ${Number(settings.clockOffsetDays)} day(s).</span><button type="button" class="linkish" data-action="clock" data-days="0">Reset</button></div>`);
+    }
     $("#banners").innerHTML = b.join("");
   }
   function renderHeader() {
@@ -2754,6 +2820,7 @@ Reply with ONLY this JSON object: {"lesson":"..."}`;
   let lastView = null;
   let enterTimer = 0;
   function render() {
+    document.body.classList.toggle("is-guided", S.solve || !!S.activity);
     renderRail();
     renderBanners();
     renderHeader();
@@ -2955,10 +3022,38 @@ void main() {
   if (!THEMES.includes(theme)) theme = "system";
 
   // ---------- Events ----------
+  function resetSolve() {
+    S.run++;
+    S.ctl?.abort();
+    S.session = null;
+    S.lastStudentView = "home";
+    S.solveWorked = false;
+    go("solveIntro");
+  }
+  async function startSolve(worked = false) {
+    S.solveWorked = worked;
+    S.demoId = "statistics";
+    S.courseId = "statistics";
+    const pending = startSession({ passage: STATS_EXAMPLE, demo: true });
+    const run = S.run;
+    if (!worked) return;
+    await pending;
+    if (run !== S.run || !S.gaps) return;
+    await startDiagnostic();
+    if (run !== S.run || S.diag.status !== "ready") return;
+    S.diag.answers = S.diag.items.map((item) => item.term === "respectively"
+      ? { choice: -1, correct: false, unsure: true }
+      : { choice: item.correct_index, correct: true, unsure: false });
+    finishDiagnostic();
+    for (const item of missedItems()) loadBridge(item.pi, false);
+  }
   const actions = {
     speak: (el) => readAloud(el),
     stopSpeech: () => { stopSpeech(); announce("Reading stopped."); },
-    home: () => { go("home"); },
+    home: () => { if (S.solve || S.activity) location.hash = ""; else go("home"); },
+    solveStart: () => startSolve(),
+    solveWorked: () => startSolve(true),
+    solveReset: resetSolve,
     newPassage: () => { S.session = null; S.lastStudentView = "home"; go("home"); },
     studentMode: () => {
       if (sessionOpen()) { S.courseId = S.session.course; S.langId = S.session.home_language; }
@@ -2967,7 +3062,7 @@ void main() {
     teacherMode: () => { S.teacher.lessonStatus = S.teacher.lessonStatus === "loading" ? "loading" : "idle"; go("teacher"); },
     admin: () => go("admin"),
     settings: () => { S.settingsMsg = ""; go("settings"); },
-    theme: () => { theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; applyTheme(theme, true); toast(`Theme: ${theme === "system" ? "match system" : theme}`); },
+    theme: () => { theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; applyTheme(theme, !S.solve && !S.activity); toast(`Theme: ${theme === "system" ? "match system" : theme}`); },
     demo: () => { S.session = null; const d = selectedDemo(); S.courseId = d.courseId; startSession({ passage: d.passage, demo: true }); },
     demoFallback: () => { settings.fault = "off"; saveSettings(); actions.demo(); },
     focusPassage: () => { const ta = $("#passageInput"); if (ta) { ta.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" }); tryFocus(ta); } },
@@ -3130,14 +3225,33 @@ void main() {
 
   function routeFromHash() {
     const h = (location.hash || "").replace(/^#/, "").toLowerCase();
+    if (h === "solve-demo") {
+      if (!S.solve) {
+        S.solve = true;
+        S.langId = "en";
+        resetSolve();
+      }
+      return;
+    }
+    if (S.solve) {
+      S.run++;
+      S.ctl?.abort();
+      S.solve = false;
+      S.solveWorked = false;
+      S.session = null;
+      S.lastStudentView = "home";
+      go("home");
+      checkSiteHealth();
+    }
     if (h === "teacher") go("teacher");
     else if (h === "admin" || h === "evidence") go("admin");
   }
   window.addEventListener("hashchange", routeFromHash);
 
-  // ---------- Boot ----------
-  applyTheme(theme, false);
-  if (SITE_AI) {
+  let healthChecked = false;
+  function checkSiteHealth() {
+    if (!SITE_AI || healthChecked) return;
+    healthChecked = true;
     // Ask the site's AI server once whether it is set up, so the start page doesn't promise live AI it can't give.
     const ctl = new AbortController();
     setTimeout(() => ctl.abort(), 8000);
@@ -3146,8 +3260,11 @@ void main() {
       .then((j) => { if (!j || j.configured === false) { siteBlocked = true; updateAIStatus(); } })
       .catch(() => { /* unreachable now; a real request will explain if it still fails */ });
   }
+  // ---------- Boot ----------
+  applyTheme(theme, false);
   render();
   routeFromHash();
+  if (!S.solve) checkSiteHealth();
   getSample().then(updateAIStatus);
   getDownloads();
 
